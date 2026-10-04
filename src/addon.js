@@ -6,7 +6,7 @@ import { officialSubtitles } from './official.js';
 import { kitsuMap, kitsuSearch } from './kitsu.js';
 import { seriesInfo } from './cinemeta.js';
 import { pickSubtitle, rarSelfTest, UnsupportedArchiveError } from './archive.js';
-import { assToSrt, decodeSubtitle, errorSrt, releaseSimilarity } from './subtitle.js';
+import { assToSrt, decodeSubtitle, errorSrt, releaseSimilarity, stripHearingImpaired } from './subtitle.js';
 import { parseRelease, releaseMatch } from './release.js';
 import { fromStremioLang, isLanguage, languageName, stremioLang, subdlCode, subsourceName } from './languages.js';
 import { configurePage } from './configure.js';
@@ -15,7 +15,7 @@ import { createSealer, sha256 } from './crypto.js';
 import { MemoryStore, createStore } from './store.js';
 import { DEFAULT_UI, normalizeUi, t } from './i18n.js';
 
-const VERSION = '3.7.1';
+const VERSION = '3.8.0';
 const MAX_LANGUAGES = 10;
 // Kullanıcı isterse her dilde gösterilecek altyazı sayısını sınırlar; varsayılan sınırsızdır.
 const MAX_PER_LANGUAGE = 50;
@@ -36,6 +36,8 @@ const FILE_TTL = 30 * 24 * 60 * 60;
 const TOKEN_TTL = 23 * 60 * 60;
 const LOGIN_BACKOFF = 5 * 60;
 const CONNECT_ATTEMPTS = { max: 20, windowSec: 10 * 60 };
+// Ayar sayfasındaki "kaynaklarımı dene" butonunun aradığı örnek film (The Shawshank Redemption).
+const TEST_TITLE = 'tt0111161';
 // Liste kısaltılırken her siteden en az bir altyazı kalsın diye kaynakların ait olduğu site.
 const SITE = { official: 'os', pool: 'os', quota: 'os', subdl: 'subdl', subsource: 'subsource', altyazidb: 'altyazidb' };
 // Aynı hesapla bu sürede en fazla bu kadar hak harcanır.
@@ -102,18 +104,25 @@ export function createAddon(env = process.env) {
 
   /**
    * Adresteki ayar bölümünü okur: "languages=tr,en&ui=tr&auth=<şifreli kaynaklar>".
-   * İsteğe bağlı: "max=10" (dil başına en fazla altyazı), "match=0" (akıllı sürüm eşleştirme kapalı).
+   * İsteğe bağlı: "max=10" (dil başına en fazla altyazı), "match=0" (akıllı sürüm eşleştirme kapalı),
+   * "fb=1" (sonraki diller yalnızca yedek), "mt=0" (makine çevirileri gizli), "hi=last|hide" (işitme engelli
+   * altyazılar sonda ya da gizli), "clean=1" (ses açıklamaları temizlenir).
    * Şifre çözülemezse kullanıcının hiç kaynağı yok sayılır.
    */
   function parseConfig(segment) {
     const params = new URLSearchParams(segment || '');
     const secrets = openSecrets(params.get('auth'));
     const max = Number(params.get('max'));
+    const hi = params.get('hi');
     const config = {
       languages: parseLanguages(params.get('languages')),
       ui: normalizeUi(params.get('ui')),
       max: Number.isInteger(max) && max >= 1 && max <= MAX_PER_LANGUAGE ? max : null,
       match: params.get('match') !== '0',
+      fallback: params.get('fb') === '1',
+      machine: params.get('mt') !== '0',
+      hi: hi === 'last' || hi === 'hide' ? hi : 'show',
+      clean: params.get('clean') === '1',
       os: secrets.u ? { username: secrets.u, password: secrets.p } : null,
       subdl: secrets.sd || null,
       subsource: secrets.ss || null,
@@ -124,8 +133,9 @@ export function createAddon(env = process.env) {
     return config;
   }
 
+  /** Altyazı dosyası adreslerine yazılan ayar bölümü; dosya açılırken gereken ayarları taşır. */
   function configSegment(config) {
-    return `languages=${config.languages.join(',')}&ui=${config.ui || DEFAULT_UI}&auth=${config.auth}`;
+    return `languages=${config.languages.join(',')}&ui=${config.ui || DEFAULT_UI}${config.clean ? '&clean=1' : ''}&auth=${config.auth}`;
   }
 
   function sourceSummary(config) {
@@ -524,14 +534,20 @@ export function createAddon(env = process.env) {
       items.push({ ...r, release, score });
     }
 
-    // Sıra: önce dil, sonra ücretsiz olanlar (hak harcayanlar hep altta), en son videoya uygunluk.
+    // Liste filtreleri: makine çevirileri ve işitme engelli (HI) altyazılar isteğe bağlı olarak gizlenir.
+    const visible = items.filter((r) => (config.machine || !r.machine) && (config.hi !== 'hide' || !r.hi));
+
+    // Sıra: önce dil, sonra ücretsiz olanlar (hak harcayanlar hep altta), istenirse HI olanlar sonda, en son videoya uygunluk.
     const languages = config.languages;
     const order = (r) => {
       const index = languages.indexOf(r.lang);
-      return (index === -1 ? 99 : index) * 2 + (r.source === 'quota' ? 1 : 0);
+      return (index === -1 ? 99 : index) * 4 + (r.source === 'quota' ? 2 : 0) + (config.hi === 'last' && r.hi ? 1 : 0);
     };
-    items.sort((x, y) => order(x) - order(y) || y.score - x.score);
-    const shown = config.max ? limitPerLanguage(items, config.max) : items;
+    visible.sort((x, y) => order(x) - order(y) || y.score - x.score);
+    // Yedek dil: yalnızca altyazısı bulunan ilk dil gösterilir; sonraki diller o dilde hiç altyazı yoksa devreye girer.
+    const first = config.fallback ? languages.find((lang) => visible.some((r) => r.lang === lang)) : null;
+    const listed = first ? visible.filter((r) => r.lang === first) : visible;
+    const shown = config.max ? limitPerLanguage(listed, config.max) : listed;
 
     const tags = {
       official: t(ui, 'tagOfficial'),
@@ -587,6 +603,12 @@ export function createAddon(env = process.env) {
   // ---------- Dosyalar ----------
 
   /**
+   * Kullanıcı istediyse ses açıklamalarını çıkarır. Önbellekteki dosya herkes için ortak olduğundan ona dokunulmaz;
+   * temizlik her açılışta, yalnızca isteyen kullanıcıya giden metinde yapılır.
+   */
+  const tidy = (config, text) => (config.clean ? stripHearingImpaired(text) : text);
+
+  /**
    * Kısa sürede art arda gelen hak harcayan istekleri durdurur. Bazı oynatıcılar listedeki bütün
    * altyazıları kendiliğinden çeker (ör. Nuvio'da video indirirken) ve günlük hakkı bir anda bitirebilir.
    */
@@ -606,7 +628,7 @@ export function createAddon(env = process.env) {
     // Önbellekteki altyazılar herkes için ortaktır ve kimsenin indirme hakkını harcamaz.
     const cacheKey = `sub:${fileId}`;
     const hit = await store.get(cacheKey);
-    if (hit) return hit;
+    if (hit) return tidy(config, hit);
 
     if (quotaBurst(config.os)) return errorSrt([t(ui, 'burst'), t(ui, 'quotaHint')]);
 
@@ -628,12 +650,13 @@ export function createAddon(env = process.env) {
     await store.set(cacheKey, text, FILE_TTL);
     if (titleId) await addToPool(titleId, `os:${fileId}`);
     console.log(`[os] İndirildi ${fileId} (kalan hak: ${info.remaining ?? '?'})`);
-    return text;
+    return tidy(config, text);
   }
 
-  async function archiveFile(ui, lang, cacheKey, download, where) {
+  async function archiveFile(config, lang, cacheKey, download, where) {
+    const ui = config.ui || DEFAULT_UI;
     const hit = await store.get(cacheKey);
-    if (hit) return hit;
+    if (hit) return tidy(config, hit);
     let bytes;
     try {
       bytes = await pickSubtitle(await download(), where);
@@ -644,7 +667,7 @@ export function createAddon(env = process.env) {
     if (!bytes) return errorSrt(t(ui, 'notInPack'));
     const text = assToSrt(decodeSubtitle(bytes, lang));
     await store.set(cacheKey, text, FILE_TTL);
-    return text;
+    return tidy(config, text);
   }
 
   function getSubdlFile(config, lang, token) {
@@ -654,7 +677,7 @@ export function createAddon(env = process.env) {
     if (!data || typeof data.p !== 'string') return errorSrt([t(ui, 'failed'), 'bad link']);
     const where = { season: data.s, episode: data.e, absolute: data.a, seasonLength: data.n };
     const cacheKey = `sub:sd:${sha256(`${data.p}|${data.s ?? ''}|${data.e ?? ''}${data.a ? `|${data.a}|${data.n ?? ''}` : ''}`)}`;
-    return archiveFile(ui, lang, cacheKey, () => SubdlClient.download(data.p, USER_AGENT), where);
+    return archiveFile(config, lang, cacheKey, () => SubdlClient.download(data.p, USER_AGENT), where);
   }
 
   function getSubsourceFile(config, lang, file) {
@@ -663,7 +686,7 @@ export function createAddon(env = process.env) {
     const [id, season, episode, absolute, seasonLength] = file.split('-').map(Number);
     const where = episode ? { season, episode, absolute, seasonLength } : {};
     const subsource = new SubsourceClient({ apiKey: config.subsource, userAgent: USER_AGENT });
-    return archiveFile(ui, lang, `sub:ss:${id}:${season}:${episode}${absolute ? `:${absolute}:${seasonLength}` : ''}`, async () => {
+    return archiveFile(config, lang, `sub:ss:${id}:${season}:${episode}${absolute ? `:${absolute}:${seasonLength}` : ''}`, async () => {
       try {
         return await subsource.download(id);
       } catch (err) {
@@ -679,7 +702,7 @@ export function createAddon(env = process.env) {
     const [id, season, episode] = file.split('-').map(Number);
     const cacheKey = `sub:adb:${id}:${season}:${episode}`;
     const hit = await store.get(cacheKey);
-    if (hit) return hit;
+    if (hit) return tidy(config, hit);
 
     let bytes;
     try {
@@ -691,10 +714,19 @@ export function createAddon(env = process.env) {
     }
     const text = assToSrt(decodeSubtitle(bytes, lang));
     await store.set(cacheKey, text, FILE_TTL);
-    return text;
+    return tidy(config, text);
   }
 
   // ---------- Ayar sayfası: kaynak bağlama ----------
+
+  /** Aynı adresten kısa sürede çok fazla bağlama/deneme isteği geldiyse true döner. */
+  function tooManyAttempts(req) {
+    const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim();
+    const attempts = (connectAttempts.get(ip) || 0) + 1;
+    if (attempts > CONNECT_ATTEMPTS.max) return true;
+    connectAttempts.set(ip, attempts, CONNECT_ATTEMPTS.windowSec);
+    return false;
+  }
 
   /**
    * Ayar sayfasındaki "bağla / kaldır" butonları. Mevcut şifreli parçayı açar, istenen kaynağı doğrulayıp ekler
@@ -703,10 +735,7 @@ export function createAddon(env = process.env) {
   async function handleConnect(req, res) {
     if (!sealer || !env.OS_API_KEY) return sendJson(res, { error: 'server_misconfigured' }, 500);
 
-    const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim();
-    const attempts = (connectAttempts.get(ip) || 0) + 1;
-    if (attempts > CONNECT_ATTEMPTS.max) return sendJson(res, { error: 'too_many' }, 429);
-    connectAttempts.set(ip, attempts, CONNECT_ATTEMPTS.windowSec);
+    if (tooManyAttempts(req)) return sendJson(res, { error: 'too_many' }, 429);
 
     let body;
     try {
@@ -736,7 +765,11 @@ export function createAddon(env = process.env) {
       try {
         session = await client.login(username, password);
       } catch (err) {
-        if ([400, 401, 403].includes(err.status)) return sendJson(res, { error: 'bad_login' }, 401);
+        // OpenSubtitles'ın yanıtı günlüğe yazılır (kullanıcı adı ve şifre yazılmaz), sorun bildirildiğinde bakılabilsin.
+        console.error(`[connect] OpenSubtitles girişi başarısız: ${String(err.message).slice(0, 200)}`);
+        if ([400, 401].includes(err.status)) return sendJson(res, { error: 'bad_login' }, 401);
+        // 403 "şifre yanlış" yanıtı değildir (yanlış şifrede 401 gelir); kullanıcıya ayrı söylenir.
+        if (err.status === 403) return sendJson(res, { error: 'os_refused' }, 502);
         if (err.status === 429) return sendJson(res, { error: 'too_many' }, 429);
         throw err;
       }
@@ -761,6 +794,81 @@ export function createAddon(env = process.env) {
     const auth = Object.keys(secrets).length ? sealer.seal(secrets) : null;
     const config = parseConfig(auth ? `auth=${auth}` : '');
     return sendJson(res, { auth, sources: sourceSummary(config), allowedDownloads });
+  }
+
+  /**
+   * Ayar sayfasındaki "kaynaklarımı dene" butonu. Bağlı her kaynakta örnek bir film aranır ve kaç altyazı
+   * bulunduğu söylenir. Yalnızca arama yapılır; altyazı indirilmez, kimsenin indirme hakkı harcanmaz.
+   */
+  async function handleTest(req, res) {
+    if (!sealer || !env.OS_API_KEY) return sendJson(res, { error: 'server_misconfigured' }, 500);
+    if (tooManyAttempts(req)) return sendJson(res, { error: 'too_many' }, 429);
+
+    let body;
+    try {
+      body = JSON.parse(await readBody(req, 8192));
+    } catch {
+      return sendJson(res, { error: 'bad_request' }, 400);
+    }
+    const config = parseConfig(new URLSearchParams({
+      languages: Array.isArray(body?.languages) ? body.languages.join(',') : '',
+      auth: typeof body?.auth === 'string' ? body.auth : '',
+    }).toString());
+    const languages = config.languages.length ? config.languages : ['en'];
+    const rejected = () => Object.assign(new Error('key'), { rejected: true });
+
+    /** Kullanıcının anahtarıyla arama yapar; kaynak seçili dilleri hiç desteklemiyorsa yalnızca anahtarı doğrular. */
+    const keySearch = async (client, codes) => {
+      if (!codes.length) {
+        if (!(await client.verify())) throw rejected();
+        return { count: 0 };
+      }
+      return { count: (await client.search({ imdbId: TEST_TITLE, languages: codes })).length };
+    };
+    const tests = {
+      os: config.os && (async () => {
+        let session = await getSession(config.os);
+        let remaining = null;
+        try {
+          ({ remaining } = await client.userInfo(session).catch(async (err) => {
+            if (err.status !== 401) throw err;
+            // Oturumun süresi dolmuş: yeniden giriş yapıp bir kez daha sor.
+            session = await getSession(config.os, { fresh: true });
+            return client.userInfo(session);
+          }));
+        } catch (err) {
+          if (err instanceof LoginError) throw err;
+          console.error(`[test] OpenSubtitles hak bilgisi alınamadı: ${err.message}`);
+        }
+        const found = await searchOpenSubtitles({ imdbId: TEST_TITLE, languages: [...languages].sort() });
+        return { count: found.length, remaining };
+      }),
+      subdl: config.subdl && (() => keySearch(
+        new SubdlClient({ apiKey: config.subdl, userAgent: USER_AGENT }),
+        [...new Set(languages.map(subdlCode).filter(Boolean))],
+      )),
+      subsource: config.subsource && (() => keySearch(
+        new SubsourceClient({ apiKey: config.subsource, userAgent: USER_AGENT }),
+        [...new Set(languages.map(subsourceName).filter(Boolean))],
+      )),
+      altyazidb: config.altyazidb && (() => keySearch(
+        new AltyazidbClient({ apiKey: config.altyazidb, userAgent: USER_AGENT }),
+        languages.filter((lang) => ALTYAZIDB_LANGUAGES.includes(lang)),
+      )),
+    };
+
+    const results = await Promise.all(Object.entries(tests).filter(([, run]) => run).map(async ([source, run]) => {
+      try {
+        return { source, status: 'ok', ...(await within(run(), sourceDeadline)) };
+      } catch (err) {
+        if (err instanceof LoginError) return { source, status: 'login' };
+        const badKey = err.rejected || [401, 403].includes(err.status) || (source === 'subdl' && /auth|api.?key/i.test(err.message));
+        if (source !== 'os' && badKey) return { source, status: 'key' };
+        console.error(`[test] ${source}: ${err.message}`);
+        return { source, status: 'error' };
+      }
+    }));
+    return sendJson(res, { results });
   }
 
   return async function handler(req, res) {
@@ -791,6 +899,10 @@ export function createAddon(env = process.env) {
           sources: sourceSummary(config),
           max: config.max,
           match: config.match,
+          fallback: config.fallback,
+          machine: config.machine,
+          hi: config.hi,
+          clean: config.clean,
           maxLanguages: MAX_LANGUAGES,
           misconfigured: !env.OS_API_KEY || !sealer,
         });
@@ -798,6 +910,9 @@ export function createAddon(env = process.env) {
       }
       if (parts.length === 2 && parts[0] === 'api' && parts[1] === 'connect' && req.method === 'POST') {
         return await handleConnect(req, res);
+      }
+      if (parts.length === 2 && parts[0] === 'api' && parts[1] === 'test' && req.method === 'POST') {
+        return await handleTest(req, res);
       }
       // Tarayıcıda hatırlanan şifreli parçanın hâlâ geçerli olup olmadığını söyler; hiçbir dış servise istek atmaz.
       if (parts.length === 2 && parts[0] === 'api' && parts[1] === 'status' && req.method === 'POST') {

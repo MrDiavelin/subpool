@@ -38,6 +38,9 @@ Bu yüzden SubPool'un ana altyazı eklentisinin **yanında, yan eklenti olarak**
 ## Kullanım
 
 1. Ayar sayfasını aç ve en az bir kaynak bağla: OpenSubtitles hesabı, SubDL anahtarı, SubSource anahtarı ve/veya AltyazıDB anahtarı.
+   OpenSubtitles için **opensubtitles.com** hesabının kullanıcı adı (e-posta değil) ve şifresi gerekir. opensubtitles.org
+   hesabı ayrıdır ve burada geçmez; yalnızca .org'da hesabı olanlar onu https://www.opensubtitles.com/en/users/import
+   adresinden .com'a aktarabilir.
 2. Altyazı dillerini seç ve önem sırasına diz.
 3. İstersen **Liste ayarları**nı değiştir (aşağıya bak).
 4. **Stremio'ya yükle**'ye bas (ya da adresi kopyalayıp Stremio'da Eklentiler sayfasındaki arama kutusuna yapıştır).
@@ -50,6 +53,27 @@ Bu yüzden SubPool'un ana altyazı eklentisinin **yanında, yan eklenti olarak**
   (adrese `match=0` eklenir). Oynatıcı dosya adı göndermiyorsa etkisi olmaz.
 - **Her dilde en fazla altyazı** (varsayılan: sınırsız): Liste uzun geliyorsa 5, 10, 15 ya da 20 ile sınırlanabilir
   (adrese `max=10` gibi eklenir). Sınır konduğunda da altyazısı bulunan her siteden en az biri listede kalır.
+- **Sonraki dilleri yalnızca yedek olarak kullan** (varsayılan: kapalı): Açıkken listede yalnızca sıradaki ilk dilin
+  altyazıları gösterilir; o dilde hiç altyazı yoksa bir sonraki dile geçilir (adrese `fb=1` eklenir).
+- **Makine çevirilerini gizle** (varsayılan: kapalı): Makine ya da yapay zekâ çevirisi olarak işaretlenmiş altyazılar
+  listeye alınmaz (adrese `mt=0` eklenir). Bu işareti yalnızca OpenSubtitles ve AltyazıDB verir.
+- **İşitme engelli (HI) altyazılar** (varsayılan: göster): "Sona taşı" (`hi=last`) HI altyazıları her dilde diğerlerinin
+  altına alır, "Gizle" (`hi=hide`) listeden çıkarır. Ücretsiz altyazılar yine hep hak harcayanların üstünde durur.
+  Kaynağın HI olarak işaretlemediği altyazılar ayırt edilemez.
+- **Ses açıklamalarını temizle** (varsayılan: kapalı): Altyazı açılırken `[kapı çarpar]` ve `(iç çeker)` gibi açıklamalar,
+  ♪ işaretli şarkı satırları ve `JOHN:` gibi büyük harfle yazılmış konuşmacı adları çıkarılır (adrese `clean=1` eklenir).
+  Parantez içindeki çevirmen notları da silinir. "Resmi" etiketli altyazılar Stremio'nun sunucusundan geldiği için
+  onlara dokunulamaz.
+
+Bu ayarların hepsi isteğe bağlıdır; hiçbiri açılmazsa liste önceki sürümlerdeki gibi çalışır ve eski eklenti adresleri
+geçerli kalır.
+
+### Kaynaklarımı dene
+
+Ayar sayfasındaki **Kaynaklarımı dene** butonu, bağladığın her kaynakta örnek bir filmi (The Shawshank Redemption)
+seçtiğin dillerde arar ve kaynağın çalışıp çalışmadığını, kaç altyazı bulunduğunu yazar. Yalnızca arama yapılır;
+altyazı indirilmez, indirme hakkı harcanmaz. OpenSubtitles hesabı bağlıysa deneme sırasında hesaba giriş yapılır ve
+OpenSubtitles bildirirse o gün kalan indirme hakkı da gösterilir.
 
 Şifre ve anahtarlar, sana özel eklenti adresinin içinde sunucu anahtarıyla şifrelenmiş olarak durur; sunucuda saklanmaz. Ayar sayfası, bilgileri yeniden girmemen için bu şifreli adresi kullandığın tarayıcıda da hatırlar; "Bilgilerimi bu tarayıcıdan sil" butonuyla silinir.
 Yine de bu adresi kimseyle paylaşma: adresi alan, senin indirme hakkını kullanabilir.
@@ -82,6 +106,9 @@ Eklenti Nuvio'da da çalışır: adresi kopyalayıp Nuvio'nun Eklentiler bölüm
 - **Süre sınırı:** Bir kaynak 10 saniyede yanıt vermezse liste onu beklemeden gösterilir ve oynatıcıya bu listeyi yalnızca
   1 dakika saklaması söylenir; geciken kaynağın sonucu bir sonraki açılışta gelir.
 - **Durum:** `/api/health` sunucunun sürümünü ve RAR açıcının çalışıp çalışmadığını gösterir.
+- **Ses açıklaması temizliği:** Altyazı dosyası kullanıcıya gönderilirken yapılır ([src/subtitle.js](src/subtitle.js));
+  önbellekte ve havuzda altyazının özgün hâli durur, yani ayarı açmayanlar dosyayı olduğu gibi alır.
+- **Kaynak denemesi:** `/api/test` yalnızca arama yapar; aynı adresten 10 dakikada en fazla 20 deneme kabul edilir.
 - **AltyazıDB:** Sitenin resmi API'si (`altyazidb.com/api-docs.php`) kullanılır. Arşivleri site kendisi açıp düz altyazı
   olarak verir; sezon paketlerinden istenen bölüm de site tarafında ayıklanır.
 

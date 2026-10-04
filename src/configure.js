@@ -35,7 +35,7 @@ function keyPanel(name, title, signup) {
   </div>`;
 }
 
-export function configurePage({ baseUrl, selected, ui, auth, sources, max, match, maxLanguages, misconfigured }) {
+export function configurePage({ baseUrl, selected, ui, auth, sources, max, match, fallback, machine, hi, clean, maxLanguages, misconfigured }) {
   const langs = LANGUAGES.map(({ code, english, tag }) => ({ code, english, tag }));
   return `<!doctype html>
 <html lang="${ui || DEFAULT_UI}">
@@ -81,6 +81,8 @@ export function configurePage({ baseUrl, selected, ui, auth, sources, max, match
   .row { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; }
   .status { min-height:1.5em; margin:0; }
   .status.error { color:var(--danger); }
+  .status.good { color:var(--ok); }
+  .foot { margin-top:28px; text-align:center; }
   .connected { color:var(--ok); font-weight:600; margin:0; }
   ol { list-style:none; margin:0; padding:4px; }
   ol li { display:flex; align-items:center; gap:8px; padding:8px 8px 8px 12px; border-radius:8px; }
@@ -177,6 +179,12 @@ export function configurePage({ baseUrl, selected, ui, auth, sources, max, match
   ${keyPanel('subsource', 'SubSource', 'https://subsource.net/dashboard/profile')}
   ${keyPanel('altyazidb', 'AltyazıDB', 'https://altyazidb.com/')}
 
+  <div class="panel source">
+    <div class="row"><button class="btn secondary" id="test" type="button" data-i18n="testButton"></button></div>
+    <p data-i18n="testHint"></p>
+    <div id="testResult" role="status"></div>
+  </div>
+
   <h2 data-i18n="languagesTitle"></h2>
   <p data-i18n="languagesIntro"></p>
   <div class="panel"><ol id="selected"></ol></div>
@@ -191,6 +199,14 @@ export function configurePage({ baseUrl, selected, ui, auth, sources, max, match
     <p data-i18n="matchHint"></p>
     <label class="option"><span data-i18n="limitLabel"></span> <select id="limit"></select></label>
     <p data-i18n="limitHint"></p>
+    <label class="option"><input type="checkbox" id="fallback"> <span data-i18n="fallbackLabel"></span></label>
+    <p data-i18n="fallbackHint"></p>
+    <label class="option"><input type="checkbox" id="machine"> <span data-i18n="machineLabel"></span></label>
+    <p data-i18n="machineHint"></p>
+    <label class="option"><span data-i18n="hiLabel"></span> <select id="hi"></select></label>
+    <p data-i18n="hiHint"></p>
+    <label class="option"><input type="checkbox" id="clean"> <span data-i18n="cleanLabel"></span></label>
+    <p data-i18n="cleanHint"></p>
   </div>
 
   <h2 data-i18n="installTitle"></h2>
@@ -206,6 +222,8 @@ export function configurePage({ baseUrl, selected, ui, auth, sources, max, match
     <code id="url"></code>
     <p data-i18n="reinstallHint"></p>
   </div>
+
+  <p class="foot"><span data-i18n="codeText"></span> <a href="https://github.com/MrDiavelin/subpool" target="_blank" rel="noopener">github.com/MrDiavelin/subpool</a></p>
 </main>
 <script>
 const STRINGS = ${toJson(PAGE_STRINGS)};
@@ -219,8 +237,17 @@ let sources = ${toJson(sources)};
 // Liste ayarları: dil başına en fazla altyazı (null: sınırsız) ve akıllı sürüm eşleştirme.
 let max = ${toJson(max)};
 let match = ${toJson(match)};
+// Yedek dil, makine çevirilerini gizleme, işitme engelli (HI) altyazıların yeri ve ses açıklaması temizliği.
+let fallback = ${toJson(!!fallback)};
+let hideMachine = ${toJson(machine === false)};
+let hi = ${toJson(hi || 'show')};
+let clean = ${toJson(!!clean)};
 const LIMITS = [5, 10, 15, 20];
+const HI_MODES = { show: 'hiShow', last: 'hiLast', hide: 'hiHide' };
+const SOURCE_NAMES = { os: 'OpenSubtitles', subdl: 'SubDL', subsource: 'SubSource', altyazidb: 'AltyazıDB' };
 let allowance = null;
+// Kaynak denemesinin durumu: null, 'running', bir hata metninin anahtarı ya da sonuç listesi.
+let tested = null;
 
 const $ = (id) => document.getElementById(id);
 const byCode = new Map(LANGS.map((l) => [l.code, l]));
@@ -250,6 +277,10 @@ if (!auth && !selected.length) {
     if (Array.isArray(saved?.selected)) selected = saved.selected.filter((code) => byCode.has(code)).slice(0, MAX);
     if (LIMITS.includes(saved?.max)) max = saved.max;
     if (saved?.match === false) match = false;
+    if (saved?.fallback === true) fallback = true;
+    if (saved?.machine === false) hideMachine = true;
+    if (HI_MODES[saved?.hi]) hi = saved.hi;
+    if (saved?.clean === true) clean = true;
     if (typeof saved?.auth === 'string' && saved.auth && saved.sources) {
       auth = saved.auth;
       sources = { ...NO_SOURCES, ...saved.sources };
@@ -323,7 +354,34 @@ function renderStatic() {
   $('limit').replaceChildren(new Option(tr('limitNone'), ''), ...limits.map((n) => new Option(String(n), String(n))));
   $('limit').value = max ? String(max) : '';
   $('match').checked = match;
+  $('fallback').checked = fallback;
+  $('machine').checked = hideMachine;
+  $('hi').replaceChildren(...Object.entries(HI_MODES).map(([mode, key]) => new Option(tr(key), mode)));
+  $('hi').value = hi;
+  $('clean').checked = clean;
   for (const name of ['os', 'subdl', 'subsource', 'altyazidb']) setMsg(name, messages[name]);
+}
+
+function renderTest() {
+  const box = $('testResult');
+  box.replaceChildren();
+  const line = (text, cls) => {
+    const p = document.createElement('p');
+    p.className = 'status' + (cls ? ' ' + cls : '');
+    p.textContent = text;
+    box.append(p);
+  };
+  if (tested === 'running') return line(tr('testRunning'));
+  if (typeof tested === 'string') return line(tr(tested), 'error');
+  for (const r of tested || []) {
+    const source = SOURCE_NAMES[r.source] || r.source;
+    if (r.status === 'ok') {
+      const text = r.count > 0 ? tr('testOk', { source, n: r.count }) : tr('testEmpty', { source });
+      line(text + (r.remaining != null ? ' ' + tr('testRemaining', { n: r.remaining }) : ''), 'good');
+    } else {
+      line(r.status === 'login' ? tr('testBadLogin') : tr(r.status === 'key' ? 'testBadKey' : 'testFailed', { source }), 'error');
+    }
+  }
 }
 
 function render() {
@@ -391,7 +449,8 @@ function render() {
 
   const ready = !!auth && selected.length > 0;
   // Varsayılan liste ayarları adrese yazılmaz; eski adresler de aynen çalışır.
-  const options = (max ? '&max=' + max : '') + (match ? '' : '&match=0');
+  const options = (max ? '&max=' + max : '') + (match ? '' : '&match=0') + (fallback ? '&fb=1' : '') +
+    (hideMachine ? '&mt=0' : '') + (hi !== 'show' ? '&hi=' + hi : '') + (clean ? '&clean=1' : '');
   const manifestUrl = BASE_URL + '/languages=' + selected.join(',') + '&ui=' + ui + options + '&auth=' + auth + '/manifest.json';
   const install = $('install');
   install.href = ready ? manifestUrl.replace(/^https?:\\/\\//, 'stremio://') : '#';
@@ -403,7 +462,9 @@ function render() {
   $('needSetup').hidden = ready;
   $('url').textContent = ready ? manifestUrl : '—';
   $('forget').hidden = !auth;
-  storageSet('saved', JSON.stringify({ auth, sources, selected, max, match }));
+  $('test').disabled = !auth || tested === 'running';
+  renderTest();
+  storageSet('saved', JSON.stringify({ auth, sources, selected, max, match, fallback, machine: !hideMachine, hi, clean }));
 }
 
 /** Kaynak ekler ya da kaldırır; sunucu yeni şifreli "auth" parçasını döndürür. */
@@ -423,10 +484,11 @@ async function connect(name, payload, form) {
       sources = data.sources;
       if (name === 'os') allowance = payload.remove ? null : data.allowedDownloads;
       if (form) form.reset();
+      tested = null;
       setMsg(name, '');
     } else {
       const bad = name === 'os' ? 'badLogin' : 'badKey';
-      setMsg(name, res.status === 401 ? bad : res.status === 429 ? 'tooMany' : 'serverError');
+      setMsg(name, res.status === 401 ? bad : res.status === 429 ? 'tooMany' : data.error === 'os_refused' ? 'osRefused' : 'serverError');
     }
   } catch {
     setMsg(name, 'serverError');
@@ -456,6 +518,28 @@ $('forget').addEventListener('click', () => {
   auth = null;
   sources = { ...NO_SOURCES };
   allowance = null;
+  tested = null;
+  render();
+});
+
+// Bağlı kaynaklarda örnek bir film aranır; yalnızca arama yapılır, indirme hakkı harcanmaz.
+$('test').addEventListener('click', async () => {
+  const asked = auth;
+  tested = 'running';
+  render();
+  let outcome = 'serverError';
+  try {
+    const res = await fetch(BASE_URL + '/api/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ auth, languages: selected }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && Array.isArray(data.results)) outcome = data.results;
+    else if (res.status === 429) outcome = 'tooMany';
+  } catch {}
+  // Deneme sürerken kaynaklar değiştiyse eski sonuç gösterilmez.
+  tested = auth === asked ? outcome : null;
   render();
 });
 
@@ -475,6 +559,22 @@ $('limit').addEventListener('change', () => {
 });
 $('match').addEventListener('change', () => {
   match = $('match').checked;
+  render();
+});
+$('fallback').addEventListener('change', () => {
+  fallback = $('fallback').checked;
+  render();
+});
+$('machine').addEventListener('change', () => {
+  hideMachine = $('machine').checked;
+  render();
+});
+$('hi').addEventListener('change', () => {
+  hi = HI_MODES[$('hi').value] ? $('hi').value : 'show';
+  render();
+});
+$('clean').addEventListener('change', () => {
+  clean = $('clean').checked;
   render();
 });
 $('copy').addEventListener('click', async () => {

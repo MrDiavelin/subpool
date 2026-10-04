@@ -108,6 +108,13 @@ export class OpenSubtitlesClient {
     return results;
   }
 
+  /** Hesabın o gün kalan indirme hakkını döndürür (bilinmiyorsa null). Hak harcamaz. */
+  async userInfo(session) {
+    const data = await this.request('/infos/user', { token: session.token, baseUrl: session.baseUrl });
+    const remaining = data?.data?.remaining_downloads;
+    return { remaining: Number.isInteger(remaining) && remaining >= 0 ? remaining : null };
+  }
+
   download(fileId, session) {
     return this.request('/download', {
       method: 'POST',

@@ -103,6 +103,79 @@ function srtTime(ms) {
   return `${pad(Math.floor(ms / 3600000))}:${pad(Math.floor(ms / 60000) % 60)}:${pad(Math.floor(ms / 1000) % 60)},${pad(ms % 1000, 3)}`;
 }
 
+const SRT_TIMING = /^\s*\d{1,2}:\d{2}:\d{2}[,.]\d{1,3}\s*-->\s*\d{1,2}:\d{2}:\d{2}[,.]\d{1,3}/;
+const MUSIC = /[♪♫♬♩]/;
+const REMOVED = '\u0001';
+// "JOHN: Selam" ya da "- KADIN 2: Dur!" gibi, tamamı büyük harfle yazılmış konuşmacı adı. Satırın kalanında küçük harf
+// yoksa (tamamı büyük harfle yazılmış altyazılar) dokunulmaz ki konuşma yanlışlıkla silinmesin.
+const SPEAKER = /^((?:<[^>]+>)*\s*-?\s*)(?=[^:]*\p{Lu}[^:]*\p{Lu})[\p{Lu}\p{N} .'’#&-]{2,30}:[ \t]*(?=.*\p{Ll}|$)/u;
+
+/**
+ * İşitme engelliler için eklenen açıklamaları SRT'den çıkarır: [ses] ve (ses) açıklamaları, ♪ işaretli şarkı
+ * satırları ve büyük harfle yazılmış konuşmacı adları. Tamamen boşalan satırlar atılır, kalanlar yeniden numaralanır.
+ * SRT olmayan metne dokunmaz.
+ */
+export function stripHearingImpaired(text) {
+  const body = String(text).replace(/^﻿/, '').replace(/\r\n?/g, '\n');
+  if (/^\s*WEBVTT/.test(body)) return text;
+  const cues = [];
+  let current = null;
+  for (const line of body.split('\n')) {
+    if (SRT_TIMING.test(line)) {
+      // Zaman satırından önceki sıra numarası bir önceki satırın metnine karışmasın.
+      if (current && /^\s*\d+\s*$/.test(current.lines[current.lines.length - 1] ?? '')) current.lines.pop();
+      current = { timing: line.trim(), lines: [] };
+      cues.push(current);
+    } else if (current) {
+      current.lines.push(line);
+    }
+  }
+  if (!cues.length) return text;
+
+  const kept = [];
+  for (const cue of cues) {
+    const cleaned = cleanCue(cue.lines.filter((line) => line.trim()).join('\n'));
+    if (cleaned) kept.push(`${cue.timing}\n${cleaned}\n`);
+  }
+  if (!kept.length) return text;
+  return kept.map((cue, i) => `${i + 1}\n${cue}`).join('\n');
+}
+
+function cleanCue(original) {
+  const bare = original.replace(/<[^>]+>/g, '').trim();
+  // Baştan sona müzik işaretleri arasındaki satırlar şarkı sözüdür.
+  if (MUSIC.test(bare[0] || '') && MUSIC.test(bare[bare.length - 1] || '')) return '';
+
+  // Açıklama iki satıra bölünmüş olabilir; bu yüzden parantezler satır satır değil, bütün metinde aranır.
+  // Silinen açıklamanın yerine geçici bir işaret konur; böylece hangi satıra dokunulduğu bilinir.
+  const stripped = original.replace(/\[[^\]]*\]|\([^)]*\)|（[^）]*）/g, REMOVED);
+  const lines = [];
+  let prefix = '';
+  for (const raw of stripped.split('\n')) {
+    if (MUSIC.test(raw)) continue;
+    const line = raw.replaceAll(REMOVED, '').replace(SPEAKER, '$1').replace(/<(i|b|u)>\s*<\/\1>/gi, '').replace(/[ \t]{2,}/g, ' ').trim();
+    const spoken = line.replace(/<[^>]+>/g, '').trim();
+    if (!spoken) {
+      // Geriye yalnızca biçim etiketi kaldıysa (örn. "</i>") boş satır bırakmak yerine komşu satıra eklenir.
+      if (lines.length) lines[lines.length - 1] += line;
+      else prefix += line;
+      continue;
+    }
+    // Açıklaması silinince geriye yalnızca tire ya da noktalama kalan satırlar atılır; dokunulmamış satırlar kalır.
+    if (line !== raw.trim() && !/[\p{L}\p{N}]/u.test(spoken)) continue;
+    lines.push(prefix + line);
+    prefix = '';
+  }
+  let result = lines.join('\n');
+  // Satır silinince açık kalan biçim etiketleri bütün altyazıyı italik yapmasın.
+  for (const tag of ['i', 'b', 'u', 'font']) {
+    const opens = (result.match(new RegExp(`<${tag}(\\s[^>]*)?>`, 'gi')) || []).length;
+    const closes = (result.match(new RegExp(`</${tag}>`, 'gi')) || []).length;
+    if (opens !== closes) result = result.replace(new RegExp(`</?${tag}(\\s[^>]*)?>`, 'gi'), '');
+  }
+  return result.trim();
+}
+
 export function errorSrt(lines) {
   return `1\n00:00:00,000 --> 00:00:15,000\n${lines.join('\n')}\n`;
 }
