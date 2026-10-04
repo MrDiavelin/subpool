@@ -1,6 +1,6 @@
 {
   "name": "subpool-diavelin",
-  "version": "3.7.0",
+  "version": "3.7.1",
   "private": true,
   "description": "SubPool by Diavelin: OpenSubtitles, SubDL ve SubSource altyazılarını tek listede toplayan Stremio eklentisi",
   "type": "module",

@@ -437,7 +437,10 @@ async function connect(name, payload, form) {
 
 $('osForm').addEventListener('submit', (event) => {
   event.preventDefault();
-  connect('os', { os: { username: $('username').value.trim(), password: $('password').value } }, event.target);
+  const username = $('username').value.trim();
+  // OpenSubtitles e-posta ile girişi kabul etmez; boşuna deneme yapılmaz.
+  if (username.includes('@')) return setMsg('os', 'badLogin');
+  connect('os', { os: { username, password: $('password').value } }, event.target);
 });
 for (const name of ['subdl', 'subsource', 'altyazidb']) {
   $(name + 'Form').addEventListener('submit', (event) => {
