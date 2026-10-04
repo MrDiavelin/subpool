@@ -1,0 +1,18 @@
+{
+  "name": "subpool-diavelin",
+  "version": "3.7.0",
+  "private": true,
+  "description": "SubPool by Diavelin: OpenSubtitles, SubDL ve SubSource altyazılarını tek listede toplayan Stremio eklentisi",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node --env-file-if-exists=.env server.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "SEE LICENSE IN LICENSE",
+  "dependencies": {
+    "node-unrar-js": "2.0.2"
+  }
+}

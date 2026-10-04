@@ -1,0 +1,73 @@
+SubPool by Diavelin
+Copyright (c) 2026 Diavelin. Tüm hakları saklıdır. / All rights reserved.
+
+────────────────────────────────────────────────────────────────────────
+TÜRKÇE
+────────────────────────────────────────────────────────────────────────
+
+Bu depo "kaynağı görülebilir" bir projedir; açık kaynak lisansı taşımaz.
+Kaynak kodu, eklentinin ne yaptığını herkesin inceleyebilmesi için yayımlanmıştır.
+
+İzin verilenler:
+  1. Kaynak kodunu okumak ve incelemek.
+  2. Kodu yalnızca kişisel inceleme ve güvenlik denetimi amacıyla kendi bilgisayarında çalıştırmak.
+  3. Hata ve güvenlik açığı bildirmek.
+
+Hak sahibinin önceden verilmiş yazılı izni olmadan izin verilmeyenler:
+  1. Kodu ya da bir bölümünü kopyalamak, değiştirmek, başka bir projede kullanmak.
+  2. Kodu ya da ondan türetilmiş bir çalışmayı dağıtmak, yayımlamak ya da başkalarının
+     kullanımına açık bir sunucuda çalıştırmak.
+  3. "SubPool" ve "Diavelin" adlarını ve logoyu başka bir üründe kullanmak.
+  4. Ticari kullanım.
+
+Katkılar: Bu projeye dışarıdan katkı (pull request) kabul edilmez. Önceden yazılı izin alınmadan
+gönderilen değişiklik istekleri incelenmeden kapatılabilir. Yine de bir katkı gönderen kişi, hak
+sahibinin o katkıyı herhangi bir kısıtlama ve karşılık olmaksızın kullanabileceğini kabul eder.
+
+GitHub'ın Hizmet Şartları gereği GitHub kullanıcıları herkese açık depoları GitHub üzerinde
+görüntüleyebilir ve çatallayabilir (fork). Bu lisans bunun ötesinde hiçbir hak vermez.
+
+Yazılım "olduğu gibi" sunulur; açık ya da örtülü hiçbir garanti verilmez. Hak sahibi, yazılımın
+kullanımından doğabilecek hiçbir zarardan sorumlu tutulamaz.
+
+────────────────────────────────────────────────────────────────────────
+ENGLISH
+────────────────────────────────────────────────────────────────────────
+
+This repository is "source-available". It is NOT open source.
+The source code is published so that anyone can inspect what the addon does.
+
+You may:
+  1. Read and inspect the source code.
+  2. Run the code on your own machine solely for personal evaluation and security review.
+  3. Report bugs and security issues.
+
+Without prior written permission from the copyright holder, you may NOT:
+  1. Copy, modify, or reuse the code or any part of it in another project.
+  2. Distribute or publish the code or any derivative work, or run it on a server that is
+     available to other people.
+  3. Use the names "SubPool" and "Diavelin" or the logo in another product.
+  4. Use it commercially.
+
+Contributions: outside contributions (pull requests) are not accepted. Change requests sent
+without prior written permission may be closed without review. Anyone who submits a contribution
+nevertheless agrees that the copyright holder may use it without restriction or compensation.
+
+Under GitHub's Terms of Service, GitHub users may view and fork public repositories on GitHub.
+This license grants no rights beyond that.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED. IN NO EVENT
+SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY ARISING FROM THE
+USE OF THE SOFTWARE.
+
+────────────────────────────────────────────────────────────────────────
+Üçüncü taraf bileşenler / Third-party components
+────────────────────────────────────────────────────────────────────────
+
+The terms above do not apply to the following components, which remain under their own licenses:
+
+  - node-unrar-js (https://github.com/YuJianrong/node-unrar.js), MIT License,
+    Copyright (c) 2017 Jianrong Yu.
+  - src/unrar-wasm.js embeds unrar.wasm from node-unrar-js, built from the UnRAR source by
+    Alexander Roshal. UnRAR may be used freely to handle RAR archives, but its source may not be
+    used to re-create the RAR compression algorithm.
