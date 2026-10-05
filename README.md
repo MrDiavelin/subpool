@@ -117,7 +117,7 @@ Ayar sayfasındaki **Gestdown'ı kullan** kutusuyla açılır (adrese `gd=1` ekl
 
 [AniSub](https://anisub.co), Türkçe anime altyazılarının paylaşıldığı bir sitedir ve hesap ya da anahtar istemeyen kendi
 Stremio eklentisini sunar. SubPool bu eklentiye, Stremio'nun resmi OpenSubtitles eklentisine bağlandığı gibi bağlanır.
-Ayar sayfasındaki **AniSub'ı kullan** kutusuyla açılır (adrese `as=1` eklenir); varsayılan olarak kapalıdır.
+Ayar sayfasındaki **AniSub'ı kullan** kutusuyla açılır (adrese `as=1` eklenir); varsayılan olarak kapalıdır. Yalnızca Türkçe altyazı verdiği için bu kutu ayar sayfasında yalnızca sayfa dili Türkçeyken görünür; sayfa başka bir dildeyken AniSub adrese yazılmaz.
 
 - Yalnızca Türkçe seçiliyse kullanılır.
 - AniSub'ın sitesindeki açıklamaya göre eklentisi yalnızca AniSub'ın bir IMDb numarasıyla eşleştirdiği animelerde

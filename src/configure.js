@@ -141,7 +141,7 @@ export function configurePage({ baseUrl, selected, ui, auth, sources, max, match
     <div><dt class="cost" data-i18n="tagQuota"></dt><dd data-i18n="howQuota"></dd></div>
     <div><dt class="free"><span data-i18n="tagSubdl"></span> / <span data-i18n="tagSubsource"></span></dt><dd data-i18n="howOther"></dd></div>
     <div><dt class="free" data-i18n="tagGestdown"></dt><dd data-i18n="howGestdown"></dd></div>
-    <div><dt class="free" data-i18n="tagAnisub"></dt><dd data-i18n="howAnisub"></dd></div>
+    <div id="anisubLegend"><dt class="free" data-i18n="tagAnisub"></dt><dd data-i18n="howAnisub"></dd></div>
     <div><dt class="free" data-i18n="tagDual"></dt><dd data-i18n="howDual"></dd></div>
     <div><dt>HI</dt><dd data-i18n="howHi"></dd></div>
     <div><dd><span data-i18n="vipNote"></span> <a href="https://www.opensubtitles.com/en/vip" target="_blank" rel="noopener" data-i18n="vipLink"></a></dd></div>
@@ -290,8 +290,11 @@ let hi = ${toJson(hi || 'show')};
 let clean = ${toJson(!!clean)};
 // Gestdown anahtar istemeyen bir kaynaktır; şifreli parçada değil, adreste bir ayar olarak durur.
 let gestdown = ${toJson(!!gestdown)};
-// AniSub da anahtar istemez; adreste "as=1" olarak durur.
+// AniSub da anahtar istemez; adreste "as=1" olarak durur. Yalnızca Türkçe altyazı verdiği için ayarı yalnızca site
+// Türkçeyken görünür; başka dilde gizlenir ve adrese yazılmaz (Türkçeye dönülünce seçim geri gelir).
 let anisub = ${toJson(!!anisub)};
+const anisubShown = () => ui === 'tr';
+const anisubOn = () => anisub && anisubShown();
 let dual = ${toJson(!!dual)};
 // Listede öne alınacak kaynak ("pri"); boşsa hiçbiri.
 let prefer = ${toJson(prefer || '')};
@@ -417,7 +420,8 @@ function renderStatic() {
   $('altyazidbKey').placeholder = tr('apiKey');
   $('search').placeholder = tr('searchPlaceholder');
   $('findQuery').placeholder = tr('findPlaceholder');
-  $('findIntro').textContent = tr('findIntro', { quota: tr('tagQuota'), official: tr('tagOfficial') }) + ' ' + tr('findAnisub', { anisub: tr('tagAnisub') });
+  $('findIntro').textContent = tr('findIntro', { quota: tr('tagQuota'), official: tr('tagOfficial') }) +
+    (anisubShown() ? ' ' + tr('findAnisub', { anisub: tr('tagAnisub') }) : '');
   const limits = [...new Set([...LIMITS, max || LIMITS[0]])].sort((a, b) => a - b);
   $('limit').replaceChildren(new Option(tr('limitNone'), ''), ...limits.map((n) => new Option(String(n), String(n))));
   $('limit').value = max ? String(max) : '';
@@ -427,10 +431,13 @@ function renderStatic() {
   $('hi').replaceChildren(...Object.entries(HI_MODES).map(([mode, key]) => new Option(tr(key), mode)));
   $('hi').value = hi;
   $('clean').checked = clean;
-  $('pri').replaceChildren(new Option(tr('priNone'), ''), ...Object.entries(PREFER_NAMES).map(([code, name]) => new Option(name, code)));
-  $('pri').value = prefer;
+  const priCodes = Object.keys(PREFER_NAMES).filter((code) => code !== 'as' || anisubShown());
+  $('pri').replaceChildren(new Option(tr('priNone'), ''), ...priCodes.map((code) => new Option(PREFER_NAMES[code], code)));
+  $('pri').value = priCodes.includes(prefer) ? prefer : '';
   $('gestdown').checked = gestdown;
   $('anisub').checked = anisub;
+  $('anisubPanel').hidden = !anisubShown();
+  $('anisubLegend').hidden = !anisubShown();
   $('dual').checked = dual;
   for (const name of ['os', 'subdl', 'subsource', 'altyazidb']) setMsg(name, messages[name]);
 }
@@ -523,11 +530,13 @@ function render() {
     available.append(p);
   }
 
-  const ready = (!!auth || gestdown || anisub) && selected.length > 0;
+  const ready = (!!auth || gestdown || anisubOn()) && selected.length > 0;
+  // AniSub gizliyken onu öne alma ayarı da adrese yazılmaz.
+  const pri = prefer === 'as' && !anisubShown() ? '' : prefer;
   // Varsayılan liste ayarları adrese yazılmaz; eski adresler de aynen çalışır.
   const options = (max ? '&max=' + max : '') + (match ? '' : '&match=0') + (fallback ? '&fb=1' : '') +
     (hideMachine ? '&mt=0' : '') + (hi !== 'show' ? '&hi=' + hi : '') + (clean ? '&clean=1' : '') +
-    (gestdown ? '&gd=1' : '') + (anisub ? '&as=1' : '') + (dual ? '&dual=1' : '') + (prefer ? '&pri=' + prefer : '');
+    (gestdown ? '&gd=1' : '') + (anisubOn() ? '&as=1' : '') + (dual ? '&dual=1' : '') + (pri ? '&pri=' + pri : '');
   const manifestUrl = BASE_URL + '/languages=' + selected.join(',') + '&ui=' + ui + options + (auth ? '&auth=' + auth : '') + '/manifest.json';
   const install = $('install');
   install.href = ready ? manifestUrl.replace(/^https?:\\/\\//, 'stremio://') : '#';
@@ -539,7 +548,7 @@ function render() {
   $('needSetup').hidden = ready;
   $('url').textContent = ready ? manifestUrl : '—';
   $('forget').hidden = !auth;
-  $('test').disabled = !(auth || gestdown || anisub) || tested === 'running';
+  $('test').disabled = !(auth || gestdown || anisubOn()) || tested === 'running';
   renderTest();
   const base = ready ? manifestUrl.slice(0, -'/manifest.json'.length) : null;
   // Ayarlar değişince eski ayarlarla getirilmiş altyazı listesi gösterilmez.
@@ -785,7 +794,7 @@ $('forget').addEventListener('click', () => {
 
 // Bağlı kaynaklarda örnek bir film aranır; yalnızca arama yapılır, indirme hakkı harcanmaz.
 $('test').addEventListener('click', async () => {
-  const asked = auth + '|' + gestdown + '|' + anisub;
+  const asked = auth + '|' + gestdown + '|' + anisubOn();
   tested = 'running';
   render();
   let outcome = 'serverError';
@@ -793,14 +802,14 @@ $('test').addEventListener('click', async () => {
     const res = await fetch(BASE_URL + '/api/test', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ auth, languages: selected, gestdown, anisub }),
+      body: JSON.stringify({ auth, languages: selected, gestdown, anisub: anisubOn() }),
     });
     const data = await res.json().catch(() => ({}));
     if (res.ok && Array.isArray(data.results)) outcome = data.results;
     else if (res.status === 429) outcome = 'tooMany';
   } catch {}
   // Deneme sürerken kaynaklar değiştiyse eski sonuç gösterilmez.
-  tested = auth + '|' + gestdown + '|' + anisub === asked ? outcome : null;
+  tested = auth + '|' + gestdown + '|' + anisubOn() === asked ? outcome : null;
   render();
 });
 
@@ -809,6 +818,8 @@ for (const [code, label] of Object.entries(UI_LANGUAGES)) uiSelect.append(new Op
 uiSelect.addEventListener('change', () => {
   ui = uiSelect.value;
   storageSet('ui', ui);
+  // Dil değişince AniSub görünür ya da gizlenir; açıksa deneme sonucu eski kaynaklara göre kalmasın.
+  if (anisub) tested = null;
   renderStatic();
   render();
 });
