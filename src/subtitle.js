@@ -176,6 +176,125 @@ function cleanCue(original) {
   return result.trim();
 }
 
+const CUE_TIMES = /^\s*(\d{1,2}):(\d{2}):(\d{2})[,.](\d{1,3})\s*-->\s*(\d{1,2}):(\d{2}):(\d{2})[,.](\d{1,3})/;
+// İkinci dilin satırı, kendi süresinin (ya da daha kısaysa birinci dildeki satırın süresinin) en az bu kadarında
+// ekranda birlikte duruyorsa o satırın altına yazılır.
+const DUAL_OVERLAP = 0.4;
+
+/** SRT metnini satırlarına ayırır: [{ start, end, text }] (süreler milisaniye, başlangıca göre sıralı). */
+function parseCues(text) {
+  const body = String(text).replace(/^﻿/, '').replace(/\r\n?/g, '\n');
+  const ms = (h, m, s, frac) => (Number(h) * 3600 + Number(m) * 60 + Number(s)) * 1000 + Number(frac.padEnd(3, '0'));
+  const found = [];
+  let current = null;
+  for (const line of body.split('\n')) {
+    const m = line.match(CUE_TIMES);
+    if (m) {
+      // Zaman satırından önceki sıra numarası bir önceki satırın metnine karışmasın.
+      if (current && /^\s*\d+\s*$/.test(current.lines[current.lines.length - 1] ?? '')) current.lines.pop();
+      current = { start: ms(m[1], m[2], m[3], m[4]), end: ms(m[5], m[6], m[7], m[8]), lines: [] };
+      found.push(current);
+    } else if (current) {
+      current.lines.push(line);
+    }
+  }
+  const cues = [];
+  for (const cue of found) {
+    const content = cue.lines.map((line) => line.trim()).filter(Boolean).join('\n');
+    if (content && cue.end > cue.start) cues.push({ start: cue.start, end: cue.end, text: content, order: cues.length });
+  }
+  return cues.sort((a, b) => a.start - b.start || a.order - b.order);
+}
+
+const toSrt = (cues) => cues.map((c, i) => `${i + 1}\n${srtTime(c.start)} --> ${srtTime(c.end)}\n${c.text}\n`).join('\n');
+
+// Zaman kayması en fazla bu kadar (ms) aranır ve bu genişlikte (ms) dilimlerle ölçülür.
+const SHIFT_WINDOW = 15000;
+const SHIFT_STEP = 100;
+
+/**
+ * Aynı videonun farklı sürümleri için hazırlanmış iki altyazı arasında çoğu zaman sabit bir zaman kayması olur
+ * (biri diğerinden hep 2 saniye erken gibi). İkinci altyazının birinciye göre kaç milisaniye kaydırılması gerektiğini
+ * bulur: satır başlangıçları arasındaki farklar sayılır, en çok tekrarlanan fark kaymadır.
+ * Belirgin bir kayma yoksa (altyazılar zaten uyumluysa ya da hiç benzemiyorsa) 0 döner.
+ */
+function timeShift(main, other) {
+  const votes = new Map();
+  let from = 0;
+  for (const cue of other) {
+    while (from < main.length && main[from].start < cue.start - SHIFT_WINDOW) from++;
+    for (let i = from; i < main.length && main[i].start <= cue.start + SHIFT_WINDOW; i++) {
+      const slot = Math.round((main[i].start - cue.start) / SHIFT_STEP);
+      votes.set(slot, (votes.get(slot) || 0) + 1);
+    }
+  }
+  const score = (slot) => (votes.get(slot - 1) || 0) + (votes.get(slot) || 0) + (votes.get(slot + 1) || 0);
+  let best = 0;
+  for (const slot of votes.keys()) if (score(slot) > score(best)) best = slot;
+  // Satırların en az dörtte biri aynı farkı göstermeli ve bu, kaydırmadan elde edilen uyumun en az iki katı olmalı.
+  if (!best || score(best) < Math.min(main.length, other.length) / 4 || score(best) < score(0) * 2) return 0;
+  // Kazanan dilimdeki farkların ortancası alınır.
+  const diffs = [];
+  from = 0;
+  for (const cue of other) {
+    while (from < main.length && main[from].start < cue.start - SHIFT_WINDOW) from++;
+    for (let i = from; i < main.length && main[i].start <= cue.start + SHIFT_WINDOW; i++) {
+      const diff = main[i].start - cue.start;
+      if (Math.abs(diff / SHIFT_STEP - best) <= 1.5) diffs.push(diff);
+    }
+  }
+  diffs.sort((a, b) => a - b);
+  return diffs[Math.floor(diffs.length / 2)] ?? 0;
+}
+
+/**
+ * İki dildeki altyazıyı tek dosyada birleştirir: birinci dilin her satırının altına, aynı anda ekranda olan ikinci
+ * dil satırı italik olarak yazılır. Birinci dilde karşılığı olmayan satırlar kendi sürelerinde tek başına gösterilir.
+ * İkinci altyazı birinciye göre sabit bir süre kaymışsa önce o kayma giderilir.
+ * İkisinden biri SRT değilse (ya da yalnızca bir hata mesajıysa) null döner.
+ */
+export function mergeSubtitles(primary, secondary) {
+  const main = parseCues(primary);
+  let other = parseCues(secondary);
+  if (main.length < 2 || other.length < 2) return null;
+  const shift = timeShift(main, other);
+  if (shift) {
+    other = other.map((cue) => ({ ...cue, start: Math.max(0, cue.start + shift), end: cue.end + shift })).filter((cue) => cue.end > cue.start);
+  }
+
+  const attached = main.map(() => []);
+  const alone = [];
+  let from = 0;
+  for (const cue of other) {
+    // Tek satıra indirilir ki iki dil birlikte ekranı kaplamasın; konum ve italik etiketleri atılır.
+    const line = cue.text.replace(/\{\\[^}]*\}/g, '').replace(/<\/?i>/gi, '').split('\n').map((l) => l.trim()).filter(Boolean).join(' ');
+    if (!line) continue;
+    while (from < main.length && main[from].end <= cue.start) from++;
+    let best = -1;
+    let bestOverlap = 0;
+    for (let i = from; i < main.length && main[i].start < cue.end; i++) {
+      const overlap = Math.min(main[i].end, cue.end) - Math.max(main[i].start, cue.start);
+      if (overlap > bestOverlap) {
+        best = i;
+        bestOverlap = overlap;
+      }
+    }
+    const shorter = best < 0 ? 0 : Math.min(cue.end - cue.start, main[best].end - main[best].start);
+    if (best >= 0 && bestOverlap >= shorter * DUAL_OVERLAP) attached[best].push(`<i>${line}</i>`);
+    else alone.push({ start: cue.start, end: cue.end, text: `<i>${line}</i>`, order: main.length + alone.length });
+  }
+
+  const cues = main.map((cue, i) => ({ ...cue, order: i, text: [cue.text, ...attached[i]].join('\n') }));
+  return toSrt([...cues, ...alone].sort((a, b) => a.start - b.start || a.order - b.order));
+}
+
+/** Altyazının başına kısa bir bilgi satırı ekler; ilk konuşma çok erken başlıyorsa (yer yoksa) metne dokunmaz. */
+export function withNotice(text, line) {
+  const cues = parseCues(text);
+  if (cues.length < 2 || cues[0].start < 2000) return text;
+  return toSrt([{ start: 0, end: Math.min(5000, cues[0].start - 200), text: line }, ...cues]);
+}
+
 export function errorSrt(lines) {
   return `1\n00:00:00,000 --> 00:00:15,000\n${lines.join('\n')}\n`;
 }

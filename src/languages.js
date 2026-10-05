@@ -84,6 +84,19 @@ export function subsourceName(code) {
   return BY_CODE.get(code)?.english.toLowerCase() || null;
 }
 
+// Gestdown çoğu dili aynı kodla tanır; kodu farklı olanlar ve hiç tanımadıkları (null):
+const GESTDOWN_SPECIAL = {
+  'pt-pt': 'pt', 'zh-cn': 'zh-hans', 'zh-tw': 'zh-hant', 'az-az': 'az', sp: 'es-es', ea: 'es-419',
+  ab: null, an: null, at: null, ze: null, 'zh-ca': null, pr: null, ex: null, ma: null, me: null, nv: null, pm: null,
+  sx: null, 'az-zb': null, sy: null, tl: null, 'tm-td': null, tp: null,
+};
+
+/** OpenSubtitles kodunu Gestdown'ın dil koduna çevirir; Gestdown'da yoksa null. */
+export function gestdownCode(code) {
+  if (Object.hasOwn(GESTDOWN_SPECIAL, code)) return GESTDOWN_SPECIAL[code];
+  return BY_CODE.has(code) ? code : null;
+}
+
 /** Dilin adını verilen arayüz dilinde döndürür (ör. 'de' + 'tr' -> 'Almanca'). */
 export function languageName(code, uiLang) {
   const lang = BY_CODE.get(code);

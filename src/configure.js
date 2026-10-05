@@ -6,7 +6,7 @@ const toJson = (value) => JSON.stringify(value).replace(/</g, '\\u003c');
 // Ayar sayfasında kullanılmayan (sadece eklentinin içinde gösterilen) metinler sayfaya gönderilmez.
 const SERVER_ONLY = new Set([
   'manifestDesc', 'needAccountLabel', 'needAccount', 'loginFailed', 'quota', 'quotaReset', 'quotaHint', 'burst',
-  'archiveUnsupported', 'notInPack', 'keyRejected', 'failed',
+  'archiveUnsupported', 'notInPack', 'keyRejected', 'failed', 'dualMissing',
 ]);
 const PAGE_STRINGS = Object.fromEntries(
   Object.entries(STRINGS).map(([ui, strings]) => [
@@ -35,8 +35,8 @@ function keyPanel(name, title, signup) {
   </div>`;
 }
 
-export function configurePage({ baseUrl, selected, ui, auth, sources, max, match, fallback, machine, hi, clean, maxLanguages, misconfigured }) {
-  const langs = LANGUAGES.map(({ code, english, tag }) => ({ code, english, tag }));
+export function configurePage({ baseUrl, selected, ui, auth, sources, max, match, fallback, machine, hi, clean, gestdown, dual, maxLanguages, misconfigured }) {
+  const langs = LANGUAGES.map(({ code, stremio, english, tag }) => ({ code, stremio, english, tag }));
   return `<!doctype html>
 <html lang="${ui || DEFAULT_UI}">
 <head>
@@ -112,6 +112,11 @@ export function configurePage({ baseUrl, selected, ui, auth, sources, max, match
   .btn[aria-disabled=true], .btn:disabled { opacity:.4; pointer-events:none; }
   code { display:block; padding:10px; background:#0006; border-radius:8px; word-break:break-all; font-size:13px; color:var(--muted); direction:ltr; text-align:left; }
   .warn { color:var(--danger); }
+  #findForm input { flex:1; min-width:0; width:auto; }
+  .titles { display:flex; flex-wrap:wrap; gap:6px; }
+  .chip.on { border-color:var(--accent); background:#3a2f6e; }
+  .subs li { flex-wrap:wrap; }
+  .subs .name { min-width:0; overflow-wrap:anywhere; }
 </style>
 </head>
 <body>
@@ -134,6 +139,8 @@ export function configurePage({ baseUrl, selected, ui, auth, sources, max, match
     <div><dt class="free" data-i18n="tagPool"></dt><dd data-i18n="howPool"></dd></div>
     <div><dt class="cost" data-i18n="tagQuota"></dt><dd data-i18n="howQuota"></dd></div>
     <div><dt class="free"><span data-i18n="tagSubdl"></span> / <span data-i18n="tagSubsource"></span></dt><dd data-i18n="howOther"></dd></div>
+    <div><dt class="free" data-i18n="tagGestdown"></dt><dd data-i18n="howGestdown"></dd></div>
+    <div><dt class="free" data-i18n="tagDual"></dt><dd data-i18n="howDual"></dd></div>
     <div><dt>HI</dt><dd data-i18n="howHi"></dd></div>
     <div><dd><span data-i18n="vipNote"></span> <a href="https://www.opensubtitles.com/en/vip" target="_blank" rel="noopener" data-i18n="vipLink"></a></dd></div>
   </dl>
@@ -178,6 +185,11 @@ export function configurePage({ baseUrl, selected, ui, auth, sources, max, match
   ${keyPanel('subdl', 'SubDL', 'https://subdl.com/panel/api')}
   ${keyPanel('subsource', 'SubSource', 'https://subsource.net/dashboard/profile')}
   ${keyPanel('altyazidb', 'AltyazıDB', 'https://altyazidb.com/')}
+  <div class="panel source" id="gestdownPanel">
+    <h3>Gestdown <small data-i18n="optional"></small></h3>
+    <p data-i18n="gestdownIntro"></p>
+    <label class="option"><input type="checkbox" id="gestdown"> <span data-i18n="gestdownLabel"></span></label>
+  </div>
 
   <div class="panel source">
     <div class="row"><button class="btn secondary" id="test" type="button" data-i18n="testButton"></button></div>
@@ -207,6 +219,8 @@ export function configurePage({ baseUrl, selected, ui, auth, sources, max, match
     <p data-i18n="hiHint"></p>
     <label class="option"><input type="checkbox" id="clean"> <span data-i18n="cleanLabel"></span></label>
     <p data-i18n="cleanHint"></p>
+    <label class="option"><input type="checkbox" id="dual"> <span data-i18n="dualLabel"></span></label>
+    <p data-i18n="dualHint"></p>
   </div>
 
   <h2 data-i18n="installTitle"></h2>
@@ -221,6 +235,24 @@ export function configurePage({ baseUrl, selected, ui, auth, sources, max, match
     <p data-i18n="pasteHint"></p>
     <code id="url"></code>
     <p data-i18n="reinstallHint"></p>
+  </div>
+
+  <h2 data-i18n="findTitle"></h2>
+  <div class="panel source" id="findPanel">
+    <p id="findIntro"></p>
+    <p id="findSetup" data-i18n="needSetup"></p>
+    <form class="row" id="findForm">
+      <input type="search" id="findQuery" autocomplete="off" required>
+      <button class="btn primary" type="submit" id="findButton" data-i18n="findButton"></button>
+    </form>
+    <p class="status" id="findMsg" role="status"></p>
+    <div class="titles" id="findTitles"></div>
+    <div class="row" id="findEpisode" hidden>
+      <label class="row"><span data-i18n="seasonLabel"></span> <select id="findSeason"></select></label>
+      <label class="row"><span data-i18n="episodeLabel"></span> <select id="findEp"></select></label>
+      <button class="btn secondary" id="findList" type="button" data-i18n="findList"></button>
+    </div>
+    <ol class="subs" id="findSubs" hidden></ol>
   </div>
 
   <p class="foot"><span data-i18n="codeText"></span> <a href="https://github.com/MrDiavelin/subpool" target="_blank" rel="noopener">github.com/MrDiavelin/subpool</a></p>
@@ -242,12 +274,23 @@ let fallback = ${toJson(!!fallback)};
 let hideMachine = ${toJson(machine === false)};
 let hi = ${toJson(hi || 'show')};
 let clean = ${toJson(!!clean)};
+// Gestdown anahtar istemeyen bir kaynaktır; şifreli parçada değil, adreste bir ayar olarak durur.
+let gestdown = ${toJson(!!gestdown)};
+let dual = ${toJson(!!dual)};
 const LIMITS = [5, 10, 15, 20];
 const HI_MODES = { show: 'hiShow', last: 'hiLast', hide: 'hiHide' };
-const SOURCE_NAMES = { os: 'OpenSubtitles', subdl: 'SubDL', subsource: 'SubSource', altyazidb: 'AltyazıDB' };
+const SOURCE_NAMES = { os: 'OpenSubtitles', subdl: 'SubDL', subsource: 'SubSource', altyazidb: 'AltyazıDB', gestdown: 'Gestdown' };
 let allowance = null;
 // Kaynak denemesinin durumu: null, 'running', bir hata metninin anahtarı ya da sonuç listesi.
 let tested = null;
+// Altyazı arama: harici oynatıcı kullananlar altyazıyı buradan indirir. Kurulum adresindeki ayarların aynısı kullanılır.
+const CINEMETA = 'https://v3-cinemeta.strem.io';
+let addonBase = null;
+let found = null;
+let picked = null;
+let subs = null;
+let findNote = null;
+let findBusy = false;
 
 const $ = (id) => document.getElementById(id);
 const byCode = new Map(LANGS.map((l) => [l.code, l]));
@@ -281,6 +324,8 @@ if (!auth && !selected.length) {
     if (saved?.machine === false) hideMachine = true;
     if (HI_MODES[saved?.hi]) hi = saved.hi;
     if (saved?.clean === true) clean = true;
+    if (saved?.gestdown === true) gestdown = true;
+    if (saved?.dual === true) dual = true;
     if (typeof saved?.auth === 'string' && saved.auth && saved.sources) {
       auth = saved.auth;
       sources = { ...NO_SOURCES, ...saved.sources };
@@ -350,6 +395,8 @@ function renderStatic() {
   $('subsourceKey').placeholder = tr('apiKey');
   $('altyazidbKey').placeholder = tr('apiKey');
   $('search').placeholder = tr('searchPlaceholder');
+  $('findQuery').placeholder = tr('findPlaceholder');
+  $('findIntro').textContent = tr('findIntro', { quota: tr('tagQuota'), official: tr('tagOfficial') });
   const limits = [...new Set([...LIMITS, max || LIMITS[0]])].sort((a, b) => a - b);
   $('limit').replaceChildren(new Option(tr('limitNone'), ''), ...limits.map((n) => new Option(String(n), String(n))));
   $('limit').value = max ? String(max) : '';
@@ -359,6 +406,8 @@ function renderStatic() {
   $('hi').replaceChildren(...Object.entries(HI_MODES).map(([mode, key]) => new Option(tr(key), mode)));
   $('hi').value = hi;
   $('clean').checked = clean;
+  $('gestdown').checked = gestdown;
+  $('dual').checked = dual;
   for (const name of ['os', 'subdl', 'subsource', 'altyazidb']) setMsg(name, messages[name]);
 }
 
@@ -376,7 +425,8 @@ function renderTest() {
   for (const r of tested || []) {
     const source = SOURCE_NAMES[r.source] || r.source;
     if (r.status === 'ok') {
-      const text = r.count > 0 ? tr('testOk', { source, n: r.count }) : tr('testEmpty', { source });
+      // Gestdown yalnızca dizi barındırdığı için orada film yerine örnek bir dizi bölümü aranır.
+      const text = r.count > 0 ? tr(r.series ? 'testOkSeries' : 'testOk', { source, n: r.count }) : tr(r.series ? 'testEmptySeries' : 'testEmpty', { source });
       line(text + (r.remaining != null ? ' ' + tr('testRemaining', { n: r.remaining }) : ''), 'good');
     } else {
       line(r.status === 'login' ? tr('testBadLogin') : tr(r.status === 'key' ? 'testBadKey' : 'testFailed', { source }), 'error');
@@ -447,11 +497,12 @@ function render() {
     available.append(p);
   }
 
-  const ready = !!auth && selected.length > 0;
+  const ready = (!!auth || gestdown) && selected.length > 0;
   // Varsayılan liste ayarları adrese yazılmaz; eski adresler de aynen çalışır.
   const options = (max ? '&max=' + max : '') + (match ? '' : '&match=0') + (fallback ? '&fb=1' : '') +
-    (hideMachine ? '&mt=0' : '') + (hi !== 'show' ? '&hi=' + hi : '') + (clean ? '&clean=1' : '');
-  const manifestUrl = BASE_URL + '/languages=' + selected.join(',') + '&ui=' + ui + options + '&auth=' + auth + '/manifest.json';
+    (hideMachine ? '&mt=0' : '') + (hi !== 'show' ? '&hi=' + hi : '') + (clean ? '&clean=1' : '') +
+    (gestdown ? '&gd=1' : '') + (dual ? '&dual=1' : '');
+  const manifestUrl = BASE_URL + '/languages=' + selected.join(',') + '&ui=' + ui + options + (auth ? '&auth=' + auth : '') + '/manifest.json';
   const install = $('install');
   install.href = ready ? manifestUrl.replace(/^https?:\\/\\//, 'stremio://') : '#';
   install.setAttribute('aria-disabled', String(!ready));
@@ -462,9 +513,166 @@ function render() {
   $('needSetup').hidden = ready;
   $('url').textContent = ready ? manifestUrl : '—';
   $('forget').hidden = !auth;
-  $('test').disabled = !auth || tested === 'running';
+  $('test').disabled = !(auth || gestdown) || tested === 'running';
   renderTest();
-  storageSet('saved', JSON.stringify({ auth, sources, selected, max, match, fallback, machine: !hideMachine, hi, clean }));
+  const base = ready ? manifestUrl.slice(0, -'/manifest.json'.length) : null;
+  // Ayarlar değişince eski ayarlarla getirilmiş altyazı listesi gösterilmez.
+  if (base !== addonBase) subs = null;
+  addonBase = base;
+  renderFind();
+  storageSet('saved', JSON.stringify({ auth, sources, selected, max, match, fallback, machine: !hideMachine, hi, clean, gestdown, dual }));
+}
+
+function renderFind() {
+  $('findSetup').hidden = !!addonBase;
+  $('findForm').hidden = !addonBase;
+  $('findButton').disabled = findBusy;
+  $('findMsg').textContent = findNote ? (findNote.key ? tr(findNote.key) : findNote.text) : '';
+  $('findMsg').className = 'status' + (findNote?.error ? ' error' : '');
+  const titles = $('findTitles');
+  titles.replaceChildren();
+  for (const meta of (addonBase && found) || []) {
+    const text = meta.name + (meta.year ? ' (' + meta.year + ')' : '') + ' · ' + tr(meta.type === 'series' ? 'findSeries' : 'findMovie');
+    titles.append(button(text, meta.id, 'chip' + (picked?.id === meta.id ? ' on' : ''), () => pick(meta), findBusy));
+  }
+  const series = !!addonBase && picked?.type === 'series' && !!picked.seasons;
+  $('findEpisode').hidden = !series;
+  if (series) {
+    const season = Number($('findSeason').value) || picked.season;
+    $('findSeason').replaceChildren(...Object.keys(picked.seasons).map((s) => new Option(String(s), String(s))));
+    $('findSeason').value = String(season);
+    const count = picked.seasons[season] || 1;
+    const episode = Math.min(Number($('findEp').value) || 1, count);
+    $('findEp').replaceChildren(...Array.from({ length: count }, (_, i) => new Option(String(i + 1), String(i + 1))));
+    $('findEp').value = String(episode);
+    $('findList').disabled = findBusy;
+  }
+  const list = $('findSubs');
+  list.replaceChildren();
+  list.hidden = !addonBase || !subs;
+  for (const item of (addonBase && subs) || []) {
+    const li = document.createElement('li');
+    const name = document.createElement('span');
+    name.className = 'name';
+    const lang = LANGS.find((l) => l.stremio === item.lang && selected.includes(l.code)) || LANGS.find((l) => l.stremio === item.lang);
+    name.textContent = (lang ? langName(lang) + ' · ' : '') + item.label;
+    const save = button(item.saved ? tr('findSaved') : tr('findDownload'), item.label, 'btn secondary', () => download(item), item.busy);
+    li.append(name, save);
+    list.append(li);
+  }
+}
+
+const normTitle = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/ı/g, 'i').replace(/[^a-z0-9]+/g, ' ').trim();
+
+/** Film ve dizileri Stremio'nun katalog servisinde (Cinemeta) arar. IMDb numarası (tt…) da yazılabilir. */
+async function findTitles(query) {
+  const get = (path) => fetch(CINEMETA + path).then((res) => (res.ok ? res.json() : null)).catch(() => null);
+  const toTitle = (meta, type) => meta && typeof meta.name === 'string' && /^tt\\d+$/.test(meta.id || '')
+    ? { id: meta.id, type, name: meta.name, year: meta.releaseInfo || meta.year || '' } : null;
+  const imdb = query.match(/tt\\d{5,}/);
+  if (imdb) {
+    const metas = await Promise.all(['series', 'movie'].map((type) => get('/meta/' + type + '/' + imdb[0] + '.json').then((data) => toTitle(data?.meta, type))));
+    return metas.filter(Boolean).slice(0, 1);
+  }
+  const lists = await Promise.all(['movie', 'series'].map((type) => get('/catalog/' + type + '/top/search=' + encodeURIComponent(query) + '.json')
+    .then((data) => (data ? (Array.isArray(data.metas) ? data.metas : []).map((meta) => toTitle(meta, type)).filter(Boolean).slice(0, 8) : null))));
+  // İki arama da yanıt vermediyse hata gösterilir; yalnızca biri yanıt verdiyse onun sonuçları kullanılır.
+  if (lists.every((list) => !list)) return null;
+  // Filmler ve diziler sırayla karıştırılır; adı aranan metinle aynı ya da onunla başlayanlar öne alınır.
+  const mixed = [];
+  for (let i = 0; i < 8; i++) for (const list of lists) if (list?.[i]) mixed.push(list[i]);
+  const q = normTitle(query);
+  const rank = (meta) => (normTitle(meta.name) === q ? 0 : normTitle(meta.name).startsWith(q) ? 1 : 2);
+  return mixed.map((meta, i) => [meta, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(([meta]) => meta);
+}
+
+async function pick(meta) {
+  picked = { ...meta };
+  subs = null;
+  findNote = null;
+  if (meta.type === 'movie') return listSubs();
+  findBusy = true;
+  findNote = { key: 'findRunning' };
+  render();
+  // Dizinin sezonları ve her sezonun bölüm sayısı Cinemeta'dan alınır (özel bölümler, yani 0. sezon, hariç).
+  try {
+    const res = await fetch(CINEMETA + '/meta/series/' + meta.id + '.json');
+    const videos = res.ok ? (await res.json())?.meta?.videos || [] : [];
+    const seasons = {};
+    for (const v of videos) if (Number.isInteger(v?.season) && v.season > 0 && Number.isInteger(v.episode) && v.episode > 0) seasons[v.season] = Math.max(seasons[v.season] || 0, v.episode);
+    if (picked?.id === meta.id) {
+      picked.seasons = Object.keys(seasons).length ? seasons : { 1: 1 };
+      picked.season = Number(Object.keys(picked.seasons)[0]);
+      $('findSeason').value = '';
+      $('findEp').value = '';
+      findNote = null;
+    }
+  } catch {
+    findNote = { key: 'serverError', error: true };
+  }
+  findBusy = false;
+  render();
+}
+
+/** Seçilen film ya da bölüm için eklentinin altyazı listesini, kurulum adresindeki ayarlarla getirir. */
+async function listSubs() {
+  if (!addonBase || !picked) return;
+  const base = addonBase;
+  const meta = picked;
+  const id = meta.type === 'series' ? meta.id + ':' + $('findSeason').value + ':' + $('findEp').value : meta.id;
+  findBusy = true;
+  subs = null;
+  findNote = { key: 'findRunning' };
+  render();
+  try {
+    const res = await fetch(base + '/subtitles/' + meta.type + '/' + id + '.json');
+    const data = await res.json();
+    // Yalnızca eklentinin kendi sunduğu dosyalar listelenir; "Resmi" altyazılar Stremio'nun sunucusundadır.
+    const own = (data.subtitles || []).filter((s) => typeof s.url === 'string' && s.url.startsWith(BASE_URL + '/') && !s.url.includes('/message/'));
+    if (addonBase === base && picked === meta) {
+      subs = own.map((s) => ({ ...s, file: fileName(meta, s) }));
+      findNote = subs.length ? null : { key: 'findSubsNone' };
+    }
+  } catch {
+    findNote = { key: 'serverError', error: true };
+  }
+  findBusy = false;
+  render();
+}
+
+function fileName(meta, item) {
+  const pad = (n) => String(n).padStart(2, '0');
+  const episode = meta.type === 'series' ? ' S' + pad($('findSeason').value) + 'E' + pad($('findEp').value) : '';
+  const title = meta.name.replace(/[\\\\/:*?"<>|]+/g, ' ').replace(/\\s+/g, ' ').trim() || meta.id;
+  return title + episode + (item.url.includes('/dual/') ? '.dual' : '') + '.' + item.lang + '.srt';
+}
+
+/** Altyazıyı indirir. Sunucu altyazı yerine bir uyarı döndürdüyse (ör. indirme hakkı bittiyse) dosya kaydedilmez, uyarı gösterilir. */
+async function download(item) {
+  item.busy = true;
+  findNote = null;
+  render();
+  try {
+    const res = await fetch(item.url);
+    const text = await res.text();
+    const warning = text.match(/^1\\r?\\n00:00:00,000 --> 00:00:15,000\\r?\\n([\\s\\S]*?)\\s*$/);
+    if (!res.ok || (warning && !/\\n\\s*\\n/.test(warning[1]))) {
+      findNote = { text: warning ? warning[1].split(/\\r?\\n/).join(' ') : tr('serverError'), error: true };
+    } else {
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(new Blob([text], { type: 'application/x-subrip' }));
+      link.download = item.file;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(link.href), 60000);
+      item.saved = true;
+    }
+  } catch {
+    findNote = { key: 'serverError', error: true };
+  }
+  item.busy = false;
+  render();
 }
 
 /** Kaynak ekler ya da kaldırır; sunucu yeni şifreli "auth" parçasını döndürür. */
@@ -524,7 +732,7 @@ $('forget').addEventListener('click', () => {
 
 // Bağlı kaynaklarda örnek bir film aranır; yalnızca arama yapılır, indirme hakkı harcanmaz.
 $('test').addEventListener('click', async () => {
-  const asked = auth;
+  const asked = auth + '|' + gestdown;
   tested = 'running';
   render();
   let outcome = 'serverError';
@@ -532,14 +740,14 @@ $('test').addEventListener('click', async () => {
     const res = await fetch(BASE_URL + '/api/test', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ auth, languages: selected }),
+      body: JSON.stringify({ auth, languages: selected, gestdown }),
     });
     const data = await res.json().catch(() => ({}));
     if (res.ok && Array.isArray(data.results)) outcome = data.results;
     else if (res.status === 429) outcome = 'tooMany';
   } catch {}
   // Deneme sürerken kaynaklar değiştiyse eski sonuç gösterilmez.
-  tested = auth === asked ? outcome : null;
+  tested = auth + '|' + gestdown === asked ? outcome : null;
   render();
 });
 
@@ -553,6 +761,32 @@ uiSelect.addEventListener('change', () => {
 });
 
 $('search').addEventListener('input', render);
+$('findForm').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const query = $('findQuery').value.trim();
+  if (!query || findBusy) return;
+  findBusy = true;
+  found = null;
+  picked = null;
+  subs = null;
+  findNote = { key: 'findRunning' };
+  render();
+  const results = await findTitles(query).catch(() => null);
+  found = results || [];
+  findNote = !results ? { key: 'serverError', error: true } : results.length ? null : { key: 'findNone' };
+  findBusy = false;
+  render();
+});
+$('findSeason').addEventListener('change', () => {
+  $('findEp').value = '1';
+  subs = null;
+  render();
+});
+$('findEp').addEventListener('change', () => {
+  subs = null;
+  render();
+});
+$('findList').addEventListener('click', listSubs);
 $('limit').addEventListener('change', () => {
   max = Number($('limit').value) || null;
   render();
@@ -575,6 +809,15 @@ $('hi').addEventListener('change', () => {
 });
 $('clean').addEventListener('change', () => {
   clean = $('clean').checked;
+  render();
+});
+$('gestdown').addEventListener('change', () => {
+  gestdown = $('gestdown').checked;
+  tested = null;
+  render();
+});
+$('dual').addEventListener('change', () => {
+  dual = $('dual').checked;
   render();
 });
 $('copy').addEventListener('click', async () => {

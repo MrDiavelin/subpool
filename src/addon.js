@@ -2,24 +2,27 @@ import { OpenSubtitlesClient, USER_AGENT } from './opensubtitles.js';
 import { SubdlClient } from './subdl.js';
 import { SubsourceClient } from './subsource.js';
 import { ALTYAZIDB_LANGUAGES, AltyazidbClient } from './altyazidb.js';
+import { GestdownClient } from './gestdown.js';
 import { officialSubtitles } from './official.js';
 import { kitsuMap, kitsuSearch } from './kitsu.js';
 import { seriesInfo } from './cinemeta.js';
 import { pickSubtitle, rarSelfTest, UnsupportedArchiveError } from './archive.js';
-import { assToSrt, decodeSubtitle, errorSrt, releaseSimilarity, stripHearingImpaired } from './subtitle.js';
+import { assToSrt, decodeSubtitle, errorSrt, mergeSubtitles, releaseSimilarity, stripHearingImpaired, withNotice } from './subtitle.js';
 import { parseRelease, releaseMatch } from './release.js';
-import { fromStremioLang, isLanguage, languageName, stremioLang, subdlCode, subsourceName } from './languages.js';
+import { fromStremioLang, gestdownCode, isLanguage, languageName, stremioLang, subdlCode, subsourceName } from './languages.js';
 import { configurePage } from './configure.js';
 import { LOGO_PNG } from './logo.js';
 import { createSealer, sha256 } from './crypto.js';
 import { MemoryStore, createStore } from './store.js';
 import { DEFAULT_UI, normalizeUi, t } from './i18n.js';
 
-const VERSION = '3.8.0';
+const VERSION = '3.9.0';
 const MAX_LANGUAGES = 10;
 // Kullanıcı isterse her dilde gösterilecek altyazı sayısını sınırlar; varsayılan sınırsızdır.
 const MAX_PER_LANGUAGE = 50;
-const ROUTES = new Set(['manifest.json', 'subtitles', 'sub', 'sd', 'ss', 'adb', 'message', 'configure', 'api']);
+const ROUTES = new Set(['manifest.json', 'subtitles', 'sub', 'sd', 'ss', 'adb', 'gd', 'dual', 'message', 'configure', 'api']);
+// Altyazı dosyası sunan yollar.
+const FILE_ROUTES = ['sub', 'sd', 'ss', 'adb', 'gd', 'dual'];
 
 // stremio-addons.net'te eklentinin sahipliğini doğrulayan imza (gizli değildir; sitenin "Claim addon" penceresinden alınır).
 const STREMIO_ADDONS_SIGNATURE = 'eyJhbGciOiJkaXIiLCJlbmMiOiJBMTI4Q0JDLUhTMjU2In0..ol7BX2P9CbGPXdlfMscb9g.A8W2tVQPhKRsZ6J1cPK27PjeuR0cIjRgonPxHspaHUWmZQrQkq8KszM2iYtJS_2JfhzX1SOD-z7dGsfN5BX0RIv2khsB4sEOKvOZNhHrjDdyhQgbp4EG7uhbg2M2syVA.Cxx4hkhJSC88JRE506mSvA';
@@ -38,8 +41,12 @@ const LOGIN_BACKOFF = 5 * 60;
 const CONNECT_ATTEMPTS = { max: 20, windowSec: 10 * 60 };
 // Ayar sayfasındaki "kaynaklarımı dene" butonunun aradığı örnek film (The Shawshank Redemption).
 const TEST_TITLE = 'tt0111161';
+// Gestdown yalnızca dizi barındırdığı için orada örnek bir dizi bölümü aranır (Breaking Bad, 1. sezon 1. bölüm).
+const TEST_SERIES = { tvdb: 81189, season: 1, episode: 1 };
+// Çift dilli altyazı açıkken listenin başına en fazla bu kadar birleşik altyazı eklenir.
+const DUAL_MAX = 3;
 // Liste kısaltılırken her siteden en az bir altyazı kalsın diye kaynakların ait olduğu site.
-const SITE = { official: 'os', pool: 'os', quota: 'os', subdl: 'subdl', subsource: 'subsource', altyazidb: 'altyazidb' };
+const SITE = { official: 'os', pool: 'os', quota: 'os', subdl: 'subdl', subsource: 'subsource', altyazidb: 'altyazidb', gestdown: 'gestdown' };
 // Aynı hesapla bu sürede en fazla bu kadar hak harcanır.
 const QUOTA_BURST = { max: 1, windowSec: 5 };
 
@@ -106,8 +113,9 @@ export function createAddon(env = process.env) {
    * Adresteki ayar bölümünü okur: "languages=tr,en&ui=tr&auth=<şifreli kaynaklar>".
    * İsteğe bağlı: "max=10" (dil başına en fazla altyazı), "match=0" (akıllı sürüm eşleştirme kapalı),
    * "fb=1" (sonraki diller yalnızca yedek), "mt=0" (makine çevirileri gizli), "hi=last|hide" (işitme engelli
-   * altyazılar sonda ya da gizli), "clean=1" (ses açıklamaları temizlenir).
-   * Şifre çözülemezse kullanıcının hiç kaynağı yok sayılır.
+   * altyazılar sonda ya da gizli), "clean=1" (ses açıklamaları temizlenir), "gd=1" (Gestdown kaynağı açık; anahtar
+   * gerektirmediği için şifreli parçada yer almaz), "dual=1" (ilk iki dil tek altyazıda birleştirilir).
+   * Şifre çözülemezse kullanıcının anahtar isteyen hiçbir kaynağı yok sayılır.
    */
   function parseConfig(segment) {
     const params = new URLSearchParams(segment || '');
@@ -123,19 +131,22 @@ export function createAddon(env = process.env) {
       machine: params.get('mt') !== '0',
       hi: hi === 'last' || hi === 'hide' ? hi : 'show',
       clean: params.get('clean') === '1',
+      gestdown: params.get('gd') === '1',
+      dual: params.get('dual') === '1',
       os: secrets.u ? { username: secrets.u, password: secrets.p } : null,
       subdl: secrets.sd || null,
       subsource: secrets.ss || null,
       altyazidb: secrets.ad || null,
     };
-    config.hasSource = !!(config.os || config.subdl || config.subsource || config.altyazidb);
-    config.auth = config.hasSource ? params.get('auth') : null;
+    const hasKey = !!(config.os || config.subdl || config.subsource || config.altyazidb);
+    config.hasSource = hasKey || config.gestdown;
+    config.auth = hasKey ? params.get('auth') : null;
     return config;
   }
 
   /** Altyazı dosyası adreslerine yazılan ayar bölümü; dosya açılırken gereken ayarları taşır. */
   function configSegment(config) {
-    return `languages=${config.languages.join(',')}&ui=${config.ui || DEFAULT_UI}${config.clean ? '&clean=1' : ''}&auth=${config.auth}`;
+    return `languages=${config.languages.join(',')}&ui=${config.ui || DEFAULT_UI}${config.clean ? '&clean=1' : ''}${config.auth ? `&auth=${config.auth}` : ''}`;
   }
 
   function sourceSummary(config) {
@@ -150,7 +161,7 @@ export function createAddon(env = process.env) {
   function buildManifest(config, baseUrl) {
     const ui = config.ui || DEFAULT_UI;
     const langs = config.languages.map((code) => languageName(code, ui)).join(', ') || '—';
-    const sources = [config.os && 'OpenSubtitles', config.subdl && 'SubDL', config.subsource && 'SubSource', config.altyazidb && 'AltyazıDB']
+    const sources = [config.os && 'OpenSubtitles', config.subdl && 'SubDL', config.subsource && 'SubSource', config.altyazidb && 'AltyazıDB', config.gestdown && 'Gestdown']
       .filter(Boolean).join(', ') || '—';
     return {
       id: 'community.diavelin.subpool',
@@ -174,6 +185,9 @@ export function createAddon(env = process.env) {
     await store.set(key, JSON.stringify(value), ttl);
     return value;
   }
+
+  /** Dizinin Cinemeta'daki bilgisi (ad, tür, sezon uzunlukları, TheTVDB numarası). */
+  const seriesMeta = (imdbId) => cached(`cinemeta2:${imdbId}`, KITSU_TTL, () => seriesInfo(imdbId));
 
   // ---------- OpenSubtitles (kullanıcının kendi hesabı) ----------
 
@@ -392,6 +406,40 @@ export function createAddon(env = process.env) {
       });
   }
 
+  // ---------- Gestdown (anahtar gerektirmez; yalnızca diziler) ----------
+
+  async function gestdownItems(config, ctx) {
+    const { imdbId, season, episode } = ctx;
+    if (!/^\d+$/.test(season ?? '') || !/^\d+$/.test(episode ?? '')) return [];
+    const codes = new Map();
+    for (const lang of ctx.languages) {
+      const code = gestdownCode(lang);
+      if (code && !codes.has(code)) codes.set(code, lang);
+    }
+    if (!codes.size) return [];
+    // Gestdown dizileri TheTVDB numarasıyla tanır; numara Cinemeta'dan alınır.
+    const { tvdb } = await seriesMeta(imdbId);
+    if (!tvdb) return [];
+    const gestdown = new GestdownClient({ userAgent: USER_AGENT });
+    const showId = await cached(`gd-show:${tvdb}`, KITSU_TTL, () => gestdown.show(tvdb));
+    if (!showId) return [];
+
+    const lists = await Promise.all([...codes].map(([code, lang]) =>
+      cached(`gd:${showId}:${Number(season)}:${Number(episode)}:${code}`, SEARCH_TTL, () => gestdown.search({ showId, season, episode, language: code }))
+        .then((found) => found.map((r) => ({ ...r, lang })), (err) => {
+          // 423: Gestdown diziyi o sırada yeniliyor. Liste eksik sayılır ki oynatıcı biraz sonra yeniden sorsun.
+          if (err.status !== 423) throw err;
+          ctx.partial = true;
+          return [];
+        })));
+
+    const prefix = `${ctx.baseUrl}/${configSegment(config)}/gd`;
+    return lists.flat().map((r) => ({
+      key: `gd-${r.id}`, source: 'gestdown', lang: r.lang, release: r.release, hi: r.hi, downloads: r.downloads,
+      url: `${prefix}/${encodeURIComponent(r.lang)}/${r.id}.srt`,
+    }));
+  }
+
   // ---------- Liste ----------
 
   /** Anime kataloglarındaki "kitsu:7442:3" gibi numaraları "tt2560140:1:3" biçimine çevirir; karşılığı yoksa null. */
@@ -414,7 +462,7 @@ export function createAddon(env = process.env) {
     const s = Number(season);
     const e = Number(episode);
     if (!(s > 1) || !(e > 0)) return null;
-    const info = await cached(`cinemeta:${imdbId}`, KITSU_TTL, () => seriesInfo(imdbId)).catch(() => null);
+    const info = await seriesMeta(imdbId).catch(() => null);
     const points = (map, ep) => {
       const found = map?.episodes[ep];
       return !!found && found[0] === imdbId && found[1] === s && found[2] === e;
@@ -494,6 +542,7 @@ export function createAddon(env = process.env) {
       ['SubDL', config.subdl && subdlItems],
       ['SubSource', config.subsource && subsourceItems],
       ['AltyazıDB', config.altyazidb && altyazidbItems],
+      ['Gestdown', config.gestdown && gestdownItems],
     ].filter(([, fn]) => fn);
     // Yavaş kalan kaynak beklenmez; zamanında yanıt verenlerle liste gösterilir.
     const settled = await Promise.allSettled(tasks.map(([, fn]) => within(fn(config, ctx), sourceDeadline)));
@@ -556,12 +605,15 @@ export function createAddon(env = process.env) {
       subdl: t(ui, 'tagSubdl'),
       subsource: t(ui, 'tagSubsource'),
       altyazidb: t(ui, 'tagAltyazidb'),
+      gestdown: t(ui, 'tagGestdown'),
     };
+    // Çift dilli altyazılar listenin başına eklenir; dil başına sınıra dahil değildir.
+    const dual = config.dual && languages.length > 1 ? dualItems(config, visible, baseUrl) : [];
     // Stremio `label`i gösterir; Nuvio TV ise `id`yi gösterir. Bu yüzden id de etiketi taşır (tekrarlar numaralanır).
     const used = new Map();
-    const subtitles = shown.map((r) => {
+    const subtitles = [...dual, ...shown].map((r) => {
       // HI: işitme engelliler için (ses ve müzik açıklamaları da yazılı).
-      const label = `${tags[r.source]}${r.hi ? ' · HI' : ''} | ${r.release || languageName(r.lang, ui)}`;
+      const label = `${r.tag || tags[r.source]}${r.hi ? ' · HI' : ''} | ${r.release || languageName(r.lang, ui)}`;
       const count = (used.get(label) || 0) + 1;
       used.set(label, count);
       return {
@@ -572,6 +624,37 @@ export function createAddon(env = process.env) {
       };
     });
     return { subtitles, partial: !!ctx.partial };
+  }
+
+  /**
+   * Çift dilli altyazılar: birinci dilin en uygun altyazıları, ikinci dilde sürümü en çok benzeyen altyazıyla eşlenir.
+   * Yalnızca eklentinin kendi sunduğu ve hak harcamayan altyazılar kullanılır: "Resmi" altyazılar Stremio'nun
+   * sunucusundan geldiği için, hak harcayanlar ise kullanıcının haberi olmadan hak harcanmasın diye dışarıda kalır.
+   * `items` uygunluk sırasına dizilmiş olmalıdır.
+   */
+  function dualItems(config, items, baseUrl) {
+    const ui = config.ui || DEFAULT_UI;
+    const [first, second] = config.languages;
+    const own = `${baseUrl}/${configSegment(config)}/`;
+    const usable = (lang) => items.filter((r) => r.lang === lang && r.source !== 'quota' && r.url.startsWith(own));
+    const seconds = usable(second).map((item) => ({ item, info: parseRelease(item.release) }));
+    if (!seconds.length) return [];
+    const tag = `${t(ui, 'tagDual')} · ${languageName(first, ui)} + ${languageName(second, ui)}`;
+    return usable(first).slice(0, DUAL_MAX).map((main) => {
+      const info = parseRelease(main.release);
+      let best = seconds[0];
+      let bestFit = -Infinity;
+      // Eşit uyumda listede daha üstte duran (videoya daha uygun) altyazı seçilir.
+      for (const candidate of seconds) {
+        const fit = releaseMatch(info, candidate.info) + releaseSimilarity(main.release, candidate.item.release) * 100;
+        if (fit > bestFit) {
+          best = candidate;
+          bestFit = fit;
+        }
+      }
+      const refs = [main.url.slice(own.length), best.item.url.slice(own.length)];
+      return { source: 'dual', tag, lang: first, release: main.release, hi: main.hi, url: `${own}dual/${b64(refs)}.srt` };
+    });
   }
 
   /**
@@ -621,7 +704,8 @@ export function createAddon(env = process.env) {
     return false;
   }
 
-  async function getOpenSubtitlesFile(config, lang, titleId, fileId) {
+  /** `cacheOnly`: yalnızca önbellekteki (hak harcamayan) dosya verilir; önbellekte yoksa null döner. */
+  async function getOpenSubtitlesFile(config, lang, titleId, fileId, { cacheOnly = false } = {}) {
     const ui = config.ui || DEFAULT_UI;
     if (!config.os) return errorSrt(t(ui, 'needAccount'));
 
@@ -629,6 +713,7 @@ export function createAddon(env = process.env) {
     const cacheKey = `sub:${fileId}`;
     const hit = await store.get(cacheKey);
     if (hit) return tidy(config, hit);
+    if (cacheOnly) return null;
 
     if (quotaBurst(config.os)) return errorSrt([t(ui, 'burst'), t(ui, 'quotaHint')]);
 
@@ -715,6 +800,62 @@ export function createAddon(env = process.env) {
     const text = assToSrt(decodeSubtitle(bytes, lang));
     await store.set(cacheKey, text, FILE_TTL);
     return tidy(config, text);
+  }
+
+  async function getGestdownFile(config, lang, id) {
+    const cacheKey = `sub:gd:${id}`;
+    const hit = await store.get(cacheKey);
+    if (hit) return tidy(config, hit);
+    const bytes = await new GestdownClient({ userAgent: USER_AGENT }).download(id);
+    const text = assToSrt(decodeSubtitle(bytes, lang));
+    await store.set(cacheKey, text, FILE_TTL);
+    return tidy(config, text);
+  }
+
+  /**
+   * Altyazı dosyası yolunu ("sd/tr/….srt" gibi) ilgili kaynağa yönlendirir; yol tanınmıyorsa null döner.
+   * `cacheOnly` verilirse OpenSubtitles dosyaları yalnızca önbellekten okunur, yani hiçbir durumda hak harcanmaz.
+   */
+  async function getFile(config, parts, { cacheOnly = false } = {}) {
+    const name = parts[parts.length - 1] || '';
+    const id = name.replace(/\.srt$/, '');
+    // sub/{dil}/{başlık}/{dosya}.srt (eski adresler: sub/{dil}/{dosya}.srt)
+    if (parts[0] === 'sub' && (parts.length === 3 || parts.length === 4) && /^\d+\.srt$/.test(name)) {
+      return getOpenSubtitlesFile(config, parts[1], parts.length === 4 ? parts[2] : null, id, { cacheOnly });
+    }
+    if (parts[0] === 'sd' && parts.length === 3 && /^[\w-]+\.srt$/.test(name)) return getSubdlFile(config, parts[1], id);
+    if (parts[0] === 'ss' && parts.length === 3 && /^\d+-\d+-\d+(-\d+-\d+)?\.srt$/.test(name)) return getSubsourceFile(config, parts[1], id);
+    if (parts[0] === 'adb' && parts.length === 3 && /^\d+-\d+-\d+\.srt$/.test(name)) return getAltyazidbFile(config, parts[1], id);
+    if (parts[0] === 'gd' && parts.length === 3 && /^[0-9a-f-]{36}\.srt$/.test(name)) return getGestdownFile(config, parts[1], id);
+    return null;
+  }
+
+  /**
+   * Çift dilli altyazı: adres iki dosya yolunu taşır; ikisi de alınır ve tek SRT'de birleştirilir.
+   * İkinci dil alınamazsa birinci dil tek başına verilir. Hiçbir durumda indirme hakkı harcanmaz.
+   */
+  async function getDualFile(config, token) {
+    const ui = config.ui || DEFAULT_UI;
+    const refs = unb64(token);
+    const open = async (ref) => {
+      let parts;
+      try {
+        parts = ref.split('/').map(decodeURIComponent);
+      } catch {
+        return null;
+      }
+      return getFile(config, parts, { cacheOnly: true });
+    };
+    if (!Array.isArray(refs) || refs.length !== 2 || !refs.every(isText)) return errorSrt([t(ui, 'failed'), 'bad link']);
+    const [primary, secondary] = await Promise.all([
+      open(refs[0]),
+      open(refs[1]).catch((err) => {
+        console.error(`[dual] İkinci dil alınamadı: ${err.message}`);
+        return null;
+      }),
+    ]);
+    if (primary === null) return errorSrt([t(ui, 'failed'), 'bad link']);
+    return (secondary && mergeSubtitles(primary, secondary)) || withNotice(primary, t(ui, 'dualMissing'));
   }
 
   // ---------- Ayar sayfası: kaynak bağlama ----------
@@ -813,6 +954,7 @@ export function createAddon(env = process.env) {
     const config = parseConfig(new URLSearchParams({
       languages: Array.isArray(body?.languages) ? body.languages.join(',') : '',
       auth: typeof body?.auth === 'string' ? body.auth : '',
+      gd: body?.gestdown === true ? '1' : '',
     }).toString());
     const languages = config.languages.length ? config.languages : ['en'];
     const rejected = () => Object.assign(new Error('key'), { rejected: true });
@@ -855,6 +997,14 @@ export function createAddon(env = process.env) {
         new AltyazidbClient({ apiKey: config.altyazidb, userAgent: USER_AGENT }),
         languages.filter((lang) => ALTYAZIDB_LANGUAGES.includes(lang)),
       )),
+      gestdown: config.gestdown && (async () => {
+        const gestdown = new GestdownClient({ userAgent: USER_AGENT });
+        const showId = await gestdown.show(TEST_SERIES.tvdb);
+        if (!showId) throw new Error('örnek dizi Gestdown\'da bulunamadı');
+        const codes = [...new Set(languages.map(gestdownCode).filter(Boolean))];
+        const found = await Promise.all(codes.map((language) => gestdown.search({ showId, ...TEST_SERIES, language })));
+        return { count: found.flat().length, series: true };
+      }),
     };
 
     const results = await Promise.all(Object.entries(tests).filter(([, run]) => run).map(async ([source, run]) => {
@@ -903,6 +1053,8 @@ export function createAddon(env = process.env) {
           machine: config.machine,
           hi: config.hi,
           clean: config.clean,
+          gestdown: config.gestdown,
+          dual: config.dual,
           maxLanguages: MAX_LANGUAGES,
           misconfigured: !env.OS_API_KEY || !sealer,
         });
@@ -945,21 +1097,11 @@ export function createAddon(env = process.env) {
         console.log(`[addon] ${id} [${config.languages.join(',')}]: ${subtitles.length} altyazı${partial ? ' (eksik)' : ''}${extra.filename ? ` (${extra.filename})` : ''}`);
         return sendJson(res, { subtitles, cacheMaxAge: !config.hasSource ? 0 : partial ? PARTIAL_TTL : SEARCH_TTL });
       }
-      // /sub/{dil}/{başlık}/{dosya}.srt (eski adresler: /sub/{dil}/{dosya}.srt)
-      if (parts[0] === 'sub' && (parts.length === 3 || parts.length === 4) && /^\d+\.srt$/.test(parts[parts.length - 1])) {
-        const fileId = parts[parts.length - 1].replace(/\.srt$/, '');
-        const titleId = parts.length === 4 ? parts[2] : null;
-        return send(res, 200, await getOpenSubtitlesFile(config, parts[1], titleId, fileId), SRT);
+      if (parts[0] === 'dual' && parts.length === 2 && /^[\w-]+\.srt$/.test(parts[1])) {
+        return send(res, 200, await getDualFile(config, parts[1].replace(/\.srt$/, '')), SRT);
       }
-      if (parts[0] === 'sd' && parts.length === 3 && /^[\w-]+\.srt$/.test(parts[2])) {
-        return send(res, 200, await getSubdlFile(config, parts[1], parts[2].replace(/\.srt$/, '')), SRT);
-      }
-      if (parts[0] === 'ss' && parts.length === 3 && /^\d+-\d+-\d+(-\d+-\d+)?\.srt$/.test(parts[2])) {
-        return send(res, 200, await getSubsourceFile(config, parts[1], parts[2].replace(/\.srt$/, '')), SRT);
-      }
-      if (parts[0] === 'adb' && parts.length === 3 && /^\d+-\d+-\d+\.srt$/.test(parts[2])) {
-        return send(res, 200, await getAltyazidbFile(config, parts[1], parts[2].replace(/\.srt$/, '')), SRT);
-      }
+      const file = await getFile(config, parts);
+      if (file !== null) return send(res, 200, file, SRT);
       if (parts[0] === 'message' && parts.length === 3) {
         const messageUi = normalizeUi(parts[1]) || DEFAULT_UI;
         return send(res, 200, errorSrt(t(messageUi, 'needAccount')), SRT);
@@ -968,7 +1110,7 @@ export function createAddon(env = process.env) {
     } catch (err) {
       console.error(`[addon] ${parts[0]}: ${err.message}`);
       if (parts[0] === 'subtitles') return sendJson(res, { subtitles: [], cacheMaxAge: 60 });
-      if (['sub', 'sd', 'ss', 'adb'].includes(parts[0])) {
+      if (FILE_ROUTES.includes(parts[0])) {
         const lines = err.keyRejected ? t(ui, 'keyRejected', { source: err.keyRejected }) : [t(ui, 'failed'), err.message];
         return send(res, 200, errorSrt(lines), SRT);
       }
