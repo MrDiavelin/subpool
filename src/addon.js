@@ -4,6 +4,7 @@ import { SubsourceClient } from './subsource.js';
 import { ALTYAZIDB_LANGUAGES, AltyazidbClient } from './altyazidb.js';
 import { GestdownClient } from './gestdown.js';
 import { officialSubtitles } from './official.js';
+import { anisubReachable, anisubSubtitles } from './anisub.js';
 import { kitsuMap, kitsuSearch } from './kitsu.js';
 import { seriesInfo } from './cinemeta.js';
 import { pickSubtitle, rarSelfTest, UnsupportedArchiveError } from './archive.js';
@@ -16,7 +17,7 @@ import { createSealer, sha256 } from './crypto.js';
 import { MemoryStore, createStore } from './store.js';
 import { DEFAULT_UI, normalizeUi, t } from './i18n.js';
 
-const VERSION = '3.9.0';
+const VERSION = '3.10.0';
 const MAX_LANGUAGES = 10;
 // Kullanıcı isterse her dilde gösterilecek altyazı sayısını sınırlar; varsayılan sınırsızdır.
 const MAX_PER_LANGUAGE = 50;
@@ -46,9 +47,16 @@ const TEST_SERIES = { tvdb: 81189, season: 1, episode: 1 };
 // Çift dilli altyazı açıkken listenin başına en fazla bu kadar birleşik altyazı eklenir.
 const DUAL_MAX = 3;
 // Liste kısaltılırken her siteden en az bir altyazı kalsın diye kaynakların ait olduğu site.
-const SITE = { official: 'os', pool: 'os', quota: 'os', subdl: 'subdl', subsource: 'subsource', altyazidb: 'altyazidb', gestdown: 'gestdown' };
+const SITE = { official: 'os', pool: 'os', quota: 'os', subdl: 'subdl', subsource: 'subsource', altyazidb: 'altyazidb', gestdown: 'gestdown', anisub: 'anisub' };
 // Aynı hesapla bu sürede en fazla bu kadar hak harcanır.
 const QUOTA_BURST = { max: 1, windowSec: 5 };
+// Listede gösterilen kalan indirme hakkı bu kadar saniye hatırlanır (indirme yapılınca hemen güncellenir).
+const QUOTA_INFO_TTL = 5 * 60;
+const QUOTA_INFO_DEADLINE_MS = 3000;
+// Adresteki "pri" değeri: listede öne alınacak kaynak.
+const PREFER = { os: 'os', sd: 'subdl', ss: 'subsource', adb: 'altyazidb', gd: 'gestdown', as: 'anisub' };
+// AniSub'a giden isteklerde eklentinin kim olduğu ve nereden ulaşılacağı yazar.
+const ANISUB_AGENT = `SubPool/${VERSION} (+https://github.com/MrDiavelin/subpool; https://x.com/Diavelin)`;
 
 const SRT = 'application/x-subrip; charset=utf-8';
 
@@ -91,6 +99,7 @@ export function createAddon(env = process.env) {
   const failedLogins = new MemoryStore(1000);
   const connectAttempts = new MemoryStore(1000);
   const quotaSpends = new MemoryStore(1000);
+  const quotaLeft = new MemoryStore(1000);
   const sourceDeadline = Number(env.SOURCE_DEADLINE_MS) || SOURCE_DEADLINE_MS;
   console.log(`[addon] Önbellek: ${store.persistent ? 'Upstash Redis' : 'sadece bellek'}`);
 
@@ -114,7 +123,9 @@ export function createAddon(env = process.env) {
    * İsteğe bağlı: "max=10" (dil başına en fazla altyazı), "match=0" (akıllı sürüm eşleştirme kapalı),
    * "fb=1" (sonraki diller yalnızca yedek), "mt=0" (makine çevirileri gizli), "hi=last|hide" (işitme engelli
    * altyazılar sonda ya da gizli), "clean=1" (ses açıklamaları temizlenir), "gd=1" (Gestdown kaynağı açık; anahtar
-   * gerektirmediği için şifreli parçada yer almaz), "dual=1" (ilk iki dil tek altyazıda birleştirilir).
+   * gerektirmediği için şifreli parçada yer almaz), "as=1" (AniSub kaynağı açık; o da anahtar istemez),
+   * "dual=1" (ilk iki dil tek altyazıda birleştirilir), "pri=os|sd|ss|adb|gd|as" (bu kaynağın ücretsiz
+   * altyazıları her dilde öne alınır).
    * Şifre çözülemezse kullanıcının anahtar isteyen hiçbir kaynağı yok sayılır.
    */
   function parseConfig(segment) {
@@ -132,14 +143,16 @@ export function createAddon(env = process.env) {
       hi: hi === 'last' || hi === 'hide' ? hi : 'show',
       clean: params.get('clean') === '1',
       gestdown: params.get('gd') === '1',
+      anisub: params.get('as') === '1',
       dual: params.get('dual') === '1',
+      prefer: PREFER[params.get('pri')] || null,
       os: secrets.u ? { username: secrets.u, password: secrets.p } : null,
       subdl: secrets.sd || null,
       subsource: secrets.ss || null,
       altyazidb: secrets.ad || null,
     };
     const hasKey = !!(config.os || config.subdl || config.subsource || config.altyazidb);
-    config.hasSource = hasKey || config.gestdown;
+    config.hasSource = hasKey || config.gestdown || config.anisub;
     config.auth = hasKey ? params.get('auth') : null;
     return config;
   }
@@ -161,7 +174,7 @@ export function createAddon(env = process.env) {
   function buildManifest(config, baseUrl) {
     const ui = config.ui || DEFAULT_UI;
     const langs = config.languages.map((code) => languageName(code, ui)).join(', ') || '—';
-    const sources = [config.os && 'OpenSubtitles', config.subdl && 'SubDL', config.subsource && 'SubSource', config.altyazidb && 'AltyazıDB', config.gestdown && 'Gestdown']
+    const sources = [config.os && 'OpenSubtitles', config.subdl && 'SubDL', config.subsource && 'SubSource', config.altyazidb && 'AltyazıDB', config.gestdown && 'Gestdown', config.anisub && 'AniSub']
       .filter(Boolean).join(', ') || '—';
     return {
       id: 'community.diavelin.subpool',
@@ -195,11 +208,8 @@ export function createAddon(env = process.env) {
   async function getSession(creds, { fresh = false } = {}) {
     const key = sha256(`${creds.username}\n${creds.password}`);
     if (!fresh) {
-      const saved = sessions.get(key) || sealer.open(await store.get(`tok:${key}`));
-      if (saved?.token) {
-        sessions.set(key, saved, TOKEN_TTL);
-        return saved;
-      }
+      const saved = await savedSession(creds);
+      if (saved) return saved;
     }
     if (failedLogins.get(key)) throw new LoginError();
 
@@ -216,6 +226,33 @@ export function createAddon(env = process.env) {
     sessions.set(key, session, TOKEN_TTL);
     await store.set(`tok:${key}`, sealer.seal(session), TOKEN_TTL);
     return session;
+  }
+
+  /** Önbellekte duran oturumu döndürür; yoksa null (giriş yapılmaz). */
+  async function savedSession(creds) {
+    const key = sha256(`${creds.username}\n${creds.password}`);
+    const saved = sessions.get(key) || sealer.open(await store.get(`tok:${key}`));
+    if (!saved?.token) return null;
+    sessions.set(key, saved, TOKEN_TTL);
+    return saved;
+  }
+
+  const rememberRemaining = (creds, remaining) => {
+    if (Number.isInteger(remaining) && remaining >= 0) quotaLeft.set(sha256(creds.username), remaining, QUOTA_INFO_TTL);
+  };
+
+  /**
+   * Listede gösterilecek kalan indirme hakkı. Son indirmeden ya da son sorudan biliniyorsa o kullanılır; bilinmiyorsa
+   * açık bir oturum varsa OpenSubtitles'a sorulur (hak harcamaz). Sırf bu sayı için giriş yapılmaz; oturum yoksa null.
+   */
+  async function remainingDownloads(creds) {
+    const known = quotaLeft.get(sha256(creds.username));
+    if (known !== undefined) return known;
+    const session = await savedSession(creds);
+    if (!session) return null;
+    const { remaining } = await client.userInfo(session);
+    rememberRemaining(creds, remaining);
+    return remaining;
   }
 
   async function requestDownload(creds, fileId) {
@@ -440,6 +477,24 @@ export function createAddon(env = process.env) {
     }));
   }
 
+  // ---------- AniSub (AniSub'ın kendi Stremio eklentisi; anahtar gerektirmez, yalnızca Türkçe) ----------
+
+  /**
+   * AniSub'ın eklentisinin döndürdüğü altyazılar, adreslerine dokunulmadan listeye eklenir: oynatıcı dosyayı
+   * doğrudan AniSub'dan açar, sunucu dosyayı hiç indirmez. Bu yüzden çift dilli altyazıda, temizlikte ve
+   * "Altyazı ara ve indir" sayfasında kullanılmazlar.
+   */
+  async function anisubItems(config, ctx) {
+    if (!ctx.languages.includes('tr')) return [];
+    const found = await cached(`as:${ctx.type}:${ctx.titleId}`, SEARCH_TTL, () => anisubSubtitles(ctx.type, ctx.titleId, ANISUB_AGENT));
+    // AniSub yalnızca Türkçe altyazı sunar ve dili "Turkish" diye yazar; dil yazılmamışsa da Türkçe sayılır.
+    const turkish = (lang) => !lang || /^(?:turkish|türkçe)$/i.test(lang) || fromStremioLang(lang) === 'tr';
+    // Çeviren fansub'ın adı etikette "Çeviri: …" olarak görünür; sürüm eşleştirmesinde de o ad kullanılır.
+    return found
+      .filter((s) => turkish(s.lang))
+      .map((s) => ({ key: `as-${s.id}`, source: 'anisub', url: s.url, lang: 'tr', release: s.fansub, fansub: !!s.fansub, downloads: 0 }));
+  }
+
   // ---------- Liste ----------
 
   /** Anime kataloglarındaki "kitsu:7442:3" gibi numaraları "tt2560140:1:3" biçimine çevirir; karşılığı yoksa null. */
@@ -531,6 +586,11 @@ export function createAddon(env = process.env) {
       languages: config.languages,
       baseUrl,
     };
+    // Kalan hak, kaynaklar aranırken paralel sorulur; gecikirse ya da alınamazsa liste onsuz gösterilir.
+    const left = config.os ? within(remainingDownloads(config.os), QUOTA_INFO_DEADLINE_MS).catch((err) => {
+      console.error(`[os] Kalan hak alınamadı: ${err.message}`);
+      return null;
+    }) : null;
     ctx.numbering = within(animeNumbering(id, imdbId, season, episode), NUMBERING_DEADLINE_MS).catch((err) => {
       console.error(`[numara] ${id}: ${err.message}`);
       if (err instanceof TimeoutError) ctx.partial = true;
@@ -543,6 +603,7 @@ export function createAddon(env = process.env) {
       ['SubSource', config.subsource && subsourceItems],
       ['AltyazıDB', config.altyazidb && altyazidbItems],
       ['Gestdown', config.gestdown && gestdownItems],
+      ['AniSub', config.anisub && anisubItems],
     ].filter(([, fn]) => fn);
     // Yavaş kalan kaynak beklenmez; zamanında yanıt verenlerle liste gösterilir.
     const settled = await Promise.allSettled(tasks.map(([, fn]) => within(fn(config, ctx), sourceDeadline)));
@@ -586,11 +647,13 @@ export function createAddon(env = process.env) {
     // Liste filtreleri: makine çevirileri ve işitme engelli (HI) altyazılar isteğe bağlı olarak gizlenir.
     const visible = items.filter((r) => (config.machine || !r.machine) && (config.hi !== 'hide' || !r.hi));
 
-    // Sıra: önce dil, sonra ücretsiz olanlar (hak harcayanlar hep altta), istenirse HI olanlar sonda, en son videoya uygunluk.
+    // Sıra: önce dil, sonra ücretsiz olanlar (hak harcayanlar hep altta), istenirse HI olanlar sonda,
+    // sonra kullanıcının öne aldığı kaynak, en son videoya uygunluk.
     const languages = config.languages;
     const order = (r) => {
       const index = languages.indexOf(r.lang);
-      return (index === -1 ? 99 : index) * 4 + (r.source === 'quota' ? 2 : 0) + (config.hi === 'last' && r.hi ? 1 : 0);
+      return (index === -1 ? 99 : index) * 8 + (r.source === 'quota' ? 4 : 0) + (config.hi === 'last' && r.hi ? 2 : 0) +
+        (config.prefer && SITE[r.source] !== config.prefer ? 1 : 0);
     };
     visible.sort((x, y) => order(x) - order(y) || y.score - x.score);
     // Yedek dil: yalnızca altyazısı bulunan ilk dil gösterilir; sonraki diller o dilde hiç altyazı yoksa devreye girer.
@@ -598,14 +661,16 @@ export function createAddon(env = process.env) {
     const listed = first ? visible.filter((r) => r.lang === first) : visible;
     const shown = config.max ? limitPerLanguage(listed, config.max) : listed;
 
+    const remaining = left && shown.some((r) => r.source === 'quota') ? await left : null;
     const tags = {
       official: t(ui, 'tagOfficial'),
       pool: t(ui, 'tagPool'),
-      quota: t(ui, 'tagQuota'),
+      quota: t(ui, 'tagQuota') + (remaining != null ? ` · ${t(ui, 'quotaLeft', { n: remaining })}` : ''),
       subdl: t(ui, 'tagSubdl'),
       subsource: t(ui, 'tagSubsource'),
       altyazidb: t(ui, 'tagAltyazidb'),
       gestdown: t(ui, 'tagGestdown'),
+      anisub: t(ui, 'tagAnisub'),
     };
     // Çift dilli altyazılar listenin başına eklenir; dil başına sınıra dahil değildir.
     const dual = config.dual && languages.length > 1 ? dualItems(config, visible, baseUrl) : [];
@@ -613,7 +678,8 @@ export function createAddon(env = process.env) {
     const used = new Map();
     const subtitles = [...dual, ...shown].map((r) => {
       // HI: işitme engelliler için (ses ve müzik açıklamaları da yazılı).
-      const label = `${r.tag || tags[r.source]}${r.hi ? ' · HI' : ''} | ${r.release || languageName(r.lang, ui)}`;
+      const name = r.fansub ? t(ui, 'fansubBy', { name: r.release }) : r.release;
+      const label = `${r.tag || tags[r.source]}${r.hi ? ' · HI' : ''} | ${name || languageName(r.lang, ui)}`;
       const count = (used.get(label) || 0) + 1;
       used.set(label, count);
       return {
@@ -623,7 +689,7 @@ export function createAddon(env = process.env) {
         label,
       };
     });
-    return { subtitles, partial: !!ctx.partial };
+    return { subtitles, partial: !!ctx.partial, remaining };
   }
 
   /**
@@ -723,6 +789,7 @@ export function createAddon(env = process.env) {
     } catch (err) {
       if (err instanceof LoginError) return errorSrt(t(ui, 'loginFailed'));
       if (err.status === 406) {
+        rememberRemaining(config.os, 0);
         const reset = formatReset(err.data?.reset_time_utc, ui);
         return errorSrt([t(ui, 'quota'), reset ? t(ui, 'quotaReset', { time: reset }) : '', t(ui, 'quotaHint')].filter(Boolean));
       }
@@ -734,6 +801,7 @@ export function createAddon(env = process.env) {
     const text = assToSrt(decodeSubtitle(new Uint8Array(await res.arrayBuffer()), lang));
     await store.set(cacheKey, text, FILE_TTL);
     if (titleId) await addToPool(titleId, `os:${fileId}`);
+    rememberRemaining(config.os, info.remaining);
     console.log(`[os] İndirildi ${fileId} (kalan hak: ${info.remaining ?? '?'})`);
     return tidy(config, text);
   }
@@ -955,6 +1023,7 @@ export function createAddon(env = process.env) {
       languages: Array.isArray(body?.languages) ? body.languages.join(',') : '',
       auth: typeof body?.auth === 'string' ? body.auth : '',
       gd: body?.gestdown === true ? '1' : '',
+      as: body?.anisub === true ? '1' : '',
     }).toString());
     const languages = config.languages.length ? config.languages : ['en'];
     const rejected = () => Object.assign(new Error('key'), { rejected: true });
@@ -982,6 +1051,7 @@ export function createAddon(env = process.env) {
           if (err instanceof LoginError) throw err;
           console.error(`[test] OpenSubtitles hak bilgisi alınamadı: ${err.message}`);
         }
+        rememberRemaining(config.os, remaining);
         const found = await searchOpenSubtitles({ imdbId: TEST_TITLE, languages: [...languages].sort() });
         return { count: found.length, remaining };
       }),
@@ -1005,6 +1075,8 @@ export function createAddon(env = process.env) {
         const found = await Promise.all(codes.map((language) => gestdown.search({ showId, ...TEST_SERIES, language })));
         return { count: found.flat().length, series: true };
       }),
+      // AniSub'da herkesin bildiği bir örnek anime olmadığı için yalnızca eklentiye ulaşılıp ulaşılamadığına bakılır.
+      anisub: config.anisub && (async () => ({ reachable: await anisubReachable(ANISUB_AGENT) })),
     };
 
     const results = await Promise.all(Object.entries(tests).filter(([, run]) => run).map(async ([source, run]) => {
@@ -1013,7 +1085,7 @@ export function createAddon(env = process.env) {
       } catch (err) {
         if (err instanceof LoginError) return { source, status: 'login' };
         const badKey = err.rejected || [401, 403].includes(err.status) || (source === 'subdl' && /auth|api.?key/i.test(err.message));
-        if (source !== 'os' && badKey) return { source, status: 'key' };
+        if (source !== 'os' && source !== 'anisub' && badKey) return { source, status: 'key' };
         console.error(`[test] ${source}: ${err.message}`);
         return { source, status: 'error' };
       }
@@ -1054,7 +1126,9 @@ export function createAddon(env = process.env) {
           hi: config.hi,
           clean: config.clean,
           gestdown: config.gestdown,
+          anisub: config.anisub,
           dual: config.dual,
+          prefer: Object.keys(PREFER).find((code) => PREFER[code] === config.prefer) || null,
           maxLanguages: MAX_LANGUAGES,
           misconfigured: !env.OS_API_KEY || !sealer,
         });
@@ -1093,9 +1167,10 @@ export function createAddon(env = process.env) {
         parts[last] = parts[last].replace(/\.json$/, '');
         const [, type, id] = parts;
         const extra = parts.length === 4 ? Object.fromEntries(new URLSearchParams(parts[3])) : {};
-        const { subtitles, partial } = await getSubtitles(config, type, id, extra, baseUrl);
+        const { subtitles, partial, remaining } = await getSubtitles(config, type, id, extra, baseUrl);
         console.log(`[addon] ${id} [${config.languages.join(',')}]: ${subtitles.length} altyazı${partial ? ' (eksik)' : ''}${extra.filename ? ` (${extra.filename})` : ''}`);
-        return sendJson(res, { subtitles, cacheMaxAge: !config.hasSource ? 0 : partial ? PARTIAL_TTL : SEARCH_TTL });
+        const cacheMaxAge = !config.hasSource ? 0 : partial ? PARTIAL_TTL : remaining != null ? QUOTA_INFO_TTL : SEARCH_TTL;
+        return sendJson(res, { subtitles, cacheMaxAge });
       }
       if (parts[0] === 'dual' && parts.length === 2 && /^[\w-]+\.srt$/.test(parts[1])) {
         return send(res, 200, await getDualFile(config, parts[1].replace(/\.srt$/, '')), SRT);

@@ -5,8 +5,11 @@ yanında **ücretsiz mi, yoksa senin indirme hakkından mı düşeceğini** yaza
 
 - Her dilde önce ücretsiz altyazıları, sonra hak harcayanları gösterir; her grubun içinde videonun dosya adına/hash'ine
   en uygun olan üstte, makine çevirileri grubun sonunda durur.
-- İstenirse ilk iki dilin altyazısını tek altyazıda birleştirir (çift dilli altyazı).
-- Harici oynatıcı kullananlar için ayar sayfasında altyazı arayıp dosya olarak indirme bölümü vardır.
+- İstenirse ilk iki dilin altyazısını tek altyazıda birleştirir (çift dilli altyazı); iki altyazı arasındaki sabit
+  zaman farkını ve kare hızı farkını düzeltir.
+- İstenirse seçilen bir kaynağın ücretsiz altyazılarını her dilde öne alır.
+- Harici oynatıcı kullananlar için ayar sayfasında altyazı arayıp dosya olarak (istenirse zamanı kaydırarak) indirme
+  bölümü vardır.
 - Anime kataloglarındaki (Kitsu) yapımlarda da çalışır; ASS/SSA biçimindeki altyazıları SRT'ye çevirir.
 - Türkçe karakter sorunlarını düzeltir (windows-1254 kodlama, `ý/þ/ð` → `ı/ş/ğ`).
 - 105 altyazı dili; ayar sayfası 11 dilde (TR, EN, ES, PT, FR, DE, AR, RU, ZH, JA, KO).
@@ -32,9 +35,16 @@ Canlı adres: **https://subpool-diavelin.vercel.app**
 | `[SubDL] ✓ Ücretsiz` / `[SubSource] ✓ Ücretsiz` | Kullanıcının kendi ücretsiz anahtarıyla gelir. |
 | `[AltyazıDB] ✓ Ücretsiz` | Kullanıcının kendi AltyazıDB API anahtarıyla gelir (yalnızca Türkçe ve İngilizce); OpenSubtitles hakkı harcamaz. |
 | `[Gestdown] ✓ Ücretsiz` | Gestdown servisinden gelir (Addic7ed altyazıları); anahtar gerektirmez, OpenSubtitles hakkı harcamaz. Yalnızca dizilerde. |
+| `[AniSub] ✓ Ücretsiz` | AniSub'ın kendi Stremio eklentisinden gelen Türkçe anime altyazısıdır; anahtar gerektirmez, OpenSubtitles hakkı harcamaz. Oynatıcı dosyayı doğrudan AniSub'dan açar. Etikette çeviren fansub'ın adı yazar: `[AniSub] ✓ Ücretsiz \| Çeviri: HolySubs`. |
 | `[Çift dilli] ✓ Ücretsiz · Türkçe + İngilizce` | İlk iki dilin altyazısı tek altyazıda birleştirilmiştir (üstte birinci dil, altında italik olarak ikinci dil); hak harcamaz. |
 
 Etiketin sonundaki `· HI`, altyazının işitme engelliler için hazırlandığını (sesler ve müzik de yazılı) gösterir.
+
+"1 hak harcar" etiketinde OpenSubtitles hesabının o gün kalan indirme hakkı da yazabilir:
+`[OpenSubtitles] 1 hak harcar · bugün 17 kaldı`. Bu sayı yalnızca sunucu onu zaten biliyorsa gösterilir: son
+indirmeden, **Kaynaklarımı dene** butonundan ya da hesabın hâlâ açık olan oturumundan. Sırf bu sayı için hesaba giriş
+yapılmaz; bilinmiyorsa etiket sayısız görünür. Sunucu ve oynatıcı sayıyı birkaç dakika sakladığı için gerçek değerin
+biraz gerisinde kalabilir.
 
 Ücretsiz OpenSubtitles hesabı günde 20, VIP hesap günde 1000 indirme hakkı verir. Liste görmek hak harcamaz.
 Bu yüzden SubPool'un ana altyazı eklentisinin **yanında, yan eklenti olarak** kullanılması önerilir.
@@ -42,7 +52,8 @@ Bu yüzden SubPool'un ana altyazı eklentisinin **yanında, yan eklenti olarak**
 ## Kullanım
 
 1. Ayar sayfasını aç ve en az bir kaynak bağla: OpenSubtitles hesabı, SubDL anahtarı, SubSource anahtarı ve/veya AltyazıDB anahtarı.
-   Hesap ya da anahtar istemeyen Gestdown da (yalnızca diziler) tek başına ya da diğerlerinin yanında açılabilir.
+   Hesap ya da anahtar istemeyen Gestdown (yalnızca diziler) ve AniSub (yalnızca Türkçe anime altyazısı) da tek başına
+   ya da diğerlerinin yanında açılabilir.
    OpenSubtitles için **opensubtitles.com** hesabının kullanıcı adı (e-posta değil) ve şifresi gerekir. opensubtitles.org
    hesabı ayrıdır ve burada geçmez; yalnızca .org'da hesabı olanlar onu https://www.opensubtitles.com/en/users/import
    adresinden .com'a aktarabilir.
@@ -74,12 +85,19 @@ Bu yüzden SubPool'un ana altyazı eklentisinin **yanında, yan eklenti olarak**
   seçilmiş olmalıdır.
   - Yalnızca eklentinin kendi sunduğu ve hak harcamayan altyazılardan üretilir: SubDL, SubSource, AltyazıDB, Gestdown ve
     Havuz. "Resmi" altyazılar Stremio'nun sunucusundan geldiği için, "1 hak harcar" altyazılar ise haberin olmadan hak
-    harcanmasın diye birleştirilmez. Yalnızca OpenSubtitles hesabı bağlıysa çoğu zaman çift dilli altyazı çıkmaz.
+    harcanmasın diye birleştirilmez. AniSub altyazıları da doğrudan AniSub'dan açıldığı için birleştirilmez. Yalnızca OpenSubtitles hesabı bağlıysa çoğu zaman çift dilli altyazı çıkmaz.
   - Birinci dilin en uygun altyazıları, ikinci dilde sürüm adı en çok benzeyen altyazıyla eşlenir.
   - İkinci dilin altyazısı baştan sona aynı süre kadar erken ya da geç kalıyorsa (en fazla 15 saniye) bu fark ölçülür ve
-    ikinci dil ona göre kaydırılır; birinci dilin zamanlarına dokunulmaz. Fark bölüm boyunca değişiyorsa düzeltilmez ve
-    satırlar birbirine denk gelmeyebilir.
+    ikinci dil ona göre kaydırılır; birinci dilin zamanlarına dokunulmaz.
+  - İkinci dilin altyazısı başka kare hızındaki bir sürüm için hazırlanmışsa (23,976, 24 ve 25 kare/saniye arasında) fark
+    film boyunca giderek büyür; bu da ölçülüp düzeltilir. Bunların dışındaki, bölüm boyunca değişen farklar (örneğin
+    reklam arası kesilmiş bir sürüm) düzeltilmez ve satırlar birbirine denk gelmeyebilir.
   - İkinci dildeki altyazı alınamazsa birinci dil tek başına gösterilir.
+- **Öne alınacak kaynak** (varsayılan: yok): Seçilen kaynağın (OpenSubtitles, SubDL, SubSource, AltyazıDB, Gestdown
+  ya da AniSub) altyazıları her dilde diğer ücretsiz altyazıların üstüne alınır (adrese `pri=adb` gibi eklenir). O kaynağın
+  kendi altyazıları yine videoya uygunluğa göre sıralanır. "1 hak harcar" altyazılar her zaman en altta, çift dilli
+  altyazılar her zaman en üstte kalır; "Sona taşı" seçiliyse HI altyazılar öne alınan kaynaktan olsalar da HI
+  olmayanların altında durur.
 
 Bu ayarların hepsi isteğe bağlıdır; hiçbiri açılmazsa liste önceki sürümlerdeki gibi çalışır ve eski eklenti adresleri
 geçerli kalır.
@@ -95,13 +113,29 @@ Ayar sayfasındaki **Gestdown'ı kullan** kutusuyla açılır (adrese `gd=1` ekl
 - Gestdown diziyi o sırada yeniliyorsa o an altyazı vermez; liste onsuz gösterilir ve oynatıcıya listeyi yalnızca
   1 dakika saklaması söylenir.
 
+### AniSub
+
+[AniSub](https://anisub.co), Türkçe anime altyazılarının paylaşıldığı bir sitedir ve hesap ya da anahtar istemeyen kendi
+Stremio eklentisini sunar. SubPool bu eklentiye, Stremio'nun resmi OpenSubtitles eklentisine bağlandığı gibi bağlanır.
+Ayar sayfasındaki **AniSub'ı kullan** kutusuyla açılır (adrese `as=1` eklenir); varsayılan olarak kapalıdır.
+
+- Yalnızca Türkçe seçiliyse kullanılır.
+- AniSub'ın sitesindeki açıklamaya göre eklentisi yalnızca AniSub'ın bir IMDb numarasıyla eşleştirdiği animelerde
+  altyazı bulur.
+- Başka hiçbir kaynak bağlamadan, tek başına da kullanılabilir.
+- AniSub çeviren fansub'ın adını bildirirse etikette "Çeviri: …" olarak gösterilir.
+- AniSub'ın eklentisinin verdiği altyazı adresleri olduğu gibi listeye konur; oynatıcı dosyayı doğrudan AniSub'dan açar.
+  Dosya SubPool'un sunucusundan geçmediği için bu altyazılarda ses açıklaması temizliği yapılmaz, çift dilli altyazıda
+  kullanılmaz ve **Altyazı ara ve indir** bölümünde gösterilmez.
+
 ### Kaynaklarımı dene
 
 Ayar sayfasındaki **Kaynaklarımı dene** butonu, bağladığın her kaynakta örnek bir filmi (The Shawshank Redemption)
 seçtiğin dillerde arar ve kaynağın çalışıp çalışmadığını, kaç altyazı bulunduğunu yazar. Yalnızca arama yapılır;
 altyazı indirilmez, indirme hakkı harcanmaz. OpenSubtitles hesabı bağlıysa deneme sırasında hesaba giriş yapılır ve
 OpenSubtitles bildirirse o gün kalan indirme hakkı da gösterilir. Gestdown açıksa, yalnızca dizi barındırdığı için orada
-film yerine örnek bir dizi bölümü (Breaking Bad, 1. sezon 1. bölüm) aranır.
+film yerine örnek bir dizi bölümü (Breaking Bad, 1. sezon 1. bölüm) aranır. AniSub açıksa arama yapılmaz; yalnızca
+AniSub'ın eklentisine ulaşılıp ulaşılamadığına bakılır.
 
 Şifre ve anahtarlar, sana özel eklenti adresinin içinde sunucu anahtarıyla şifrelenmiş olarak durur; sunucuda saklanmaz. Ayar sayfası, bilgileri yeniden girmemen için bu şifreli adresi kullandığın tarayıcıda da hatırlar; "Bilgilerimi bu tarayıcıdan sil" butonuyla silinir.
 Yine de bu adresi kimseyle paylaşma: adresi alan, senin indirme hakkını kullanabilir.
@@ -118,6 +152,10 @@ oynatıcıya kendileri ekleyebilir.
 - "1 hak harcar" etiketli bir altyazıyı indirmek, OpenSubtitles hesabından 1 indirme hakkı harcar.
 - Dosya `Ad S01E02.tur.srt` biçiminde kaydedilir (çift dilli altyazılarda `Ad S01E02.dual.tur.srt`).
 - Altyazı alınamazsa (örneğin indirme hakkı bittiyse) dosya kaydedilmez; nedeni sayfada yazar.
+- **İndirirken kaydır (saniye):** Altyazı konuşmadan önce görünüyorsa artı (ör. `1.5`), sonra görünüyorsa eksi
+  (ör. `-1.5`) bir değer yazılır; indirilen dosyadaki bütün zamanlar o kadar kaydırılır (en fazla 600 saniye).
+  Kaydırma tarayıcıda, yalnızca indirilen dosyaya yapılır; Stremio ve Nuvio'daki liste ve sunucudaki dosya değişmez.
+  Geri kaydırınca başı 0'ın altına düşen satır 0. saniyeden başlar, tamamen 0'ın altına düşen satır dosyadan çıkarılır.
 
 ### Nuvio
 
@@ -154,11 +192,20 @@ Eklenti Nuvio'da da çalışır: adresi kopyalayıp Nuvio'nun Eklentiler bölüm
   olarak verir; sezon paketlerinden istenen bölüm de site tarafında ayıklanır.
 - **Gestdown:** Servisin API'si (`api.gestdown.info`) kullanılır ([src/gestdown.js](src/gestdown.js)). Gestdown dizileri
   TheTVDB numarasıyla tanır; bu numara Cinemeta'dan (`v3-cinemeta.strem.io`) alınır. Altyazılar düz SRT olarak gelir.
+- **AniSub:** AniSub'ın kendi Stremio eklentisinin altyazı adresi (`anisub.co/subtitles/...`) kullanılır
+  ([src/anisub.js](src/anisub.js)). Yalnızca `https://anisub.co/` ile başlayan altyazı adresleri listeye alınır; adresler
+  elle üretilmez ve altyazı dosyalarına sunucu hiç dokunmaz. Sonuçlar 6 saat önbellekte tutulur. İsteklerde eklentinin
+  adı, bu deponun adresi ve iletişim adresi yazar.
 - **Çift dilli altyazı:** Birleşik altyazının adresi iki altyazının yolunu taşır; dosya açılırken ikisi de alınır ve
   zamanları örtüşen satırlar birleştirilir ([src/subtitle.js](src/subtitle.js)). Birleştirmeden önce iki altyazı
   arasındaki sabit zaman farkı aranır; satırların en az dörtte biri aynı farkı gösteriyorsa ikinci dil o kadar
-  kaydırılır. OpenSubtitles dosyaları bu sırada yalnızca önbellekten okunur; çift dilli altyazı hiçbir durumda indirme
-  hakkı harcamaz.
+  kaydırılır. Kare hızı farkı için ikinci dil 23,976 / 24 / 25 oranlarıyla ölçeklenmiş hâlleriyle de denenir; bir oran,
+  satırların en az dörtte birini tutturuyor ve ölçeklenmemiş hâlin en az 1,5 katı satırı denk getiriyorsa kullanılır.
+  OpenSubtitles dosyaları bu sırada yalnızca önbellekten okunur; çift dilli altyazı hiçbir durumda indirme hakkı harcamaz.
+- **Kalan hak:** Listede gösterilen kalan indirme hakkı, son indirmede ya da kaynak denemesinde OpenSubtitles'ın verdiği
+  sayıdır. Bilinmiyorsa ve hesabın oturumu hâlâ açıksa OpenSubtitles'ın hesap bilgisi adresine (`/infos/user`, hak
+  harcamaz) sorulur; oturum yoksa sorulmaz ve giriş yapılmaz. Sayı 3 saniyede gelmezse liste onsuz gösterilir. Sayı yazan
+  liste için oynatıcıya listeyi en fazla 5 dakika saklaması söylenir.
 
 ## Bilgilerin nereye gidiyor?
 
@@ -172,6 +219,10 @@ Kodu incelerken bakılacak yerler:
 - **Gestdown'a hesap bilgisi gitmez.** Gestdown açıksa sunucu, izlenen dizinin TheTVDB numarasını, sezon/bölüm numarasını ve
   seçilen dilleri `api.gestdown.info` adresine sorar ([src/gestdown.js](src/gestdown.js)); kullanıcı adı, şifre ya da anahtar
   gönderilmez. İstek kullanıcının cihazından değil, eklentinin sunucusundan çıkar.
+- **AniSub'a hesap bilgisi gitmez.** AniSub açıksa sunucu, izlenen yapımın IMDb numarasını (dizide sezon/bölüm numarasıyla
+  birlikte) AniSub'ın eklentisine sorar ([src/anisub.js](src/anisub.js)); kullanıcı adı, şifre ya da anahtar gönderilmez.
+  Bir AniSub altyazısı seçildiğinde ise dosyayı oynatıcı doğrudan `anisub.co` adresinden indirir; bu istek kullanıcının
+  cihazından çıkar.
 - **Altyazı arama bölümü:** Film ve dizi araması ile dizinin sezon listesi tarayıcıdan doğrudan Stremio'nun katalog
   servisine (`v3-cinemeta.strem.io`) sorulur ([src/configure.js](src/configure.js)); bu isteklerde yalnızca aranan ad ya
   da yapım numarası gider. Altyazı listesi ve dosyalar, kurulum adresindeki ayarlarla eklentinin kendi sunucusundan alınır.
@@ -179,6 +230,7 @@ Kodu incelerken bakılacak yerler:
   indirmeler her zaman kullanıcının kendi hesabıyla yapılır ve hak o hesaptan düşer. Hesap bağlanmamışsa indirme yapılmaz.
 - **Önbellekte duranlar** ([src/store.js](src/store.js)): arama sonuçları, indirilen altyazı dosyaları, havuz listesi ve
   OpenSubtitles'ın verdiği oturum anahtarı (her istekte yeniden giriş yapmamak için; şifrelenmiş olarak ve süreli tutulur).
+  Kalan indirme hakkı sayısı da kullanıcı adının özeti (SHA-256) ile en fazla 5 dakika sunucunun belleğinde tutulur.
   Kullanıcı adı ve şifre önbelleğe yazılmaz.
 - **Sunucu günlüğü:** Hangi yapım için liste istendiği (yapım numarası, diller, bulunan altyazı sayısı ve oynatıcı
   gönderdiyse videonun dosya adı) sunucunun çalışma günlüğüne yazılır. Kullanıcı adı, şifre ve anahtar yazılmaz;
@@ -212,6 +264,7 @@ SubDL ve SubSource anahtarları sunucuya değil, her kullanıcının kendi eklen
 
 - Hata ya da öneri için bu deponun **Issues** bölümünü kullanabilirsin.
 - Güvenlik açığı bulduysan lütfen herkese açık yazmak yerine depo sahibine özel olarak bildir.
+- İletişim: [X (@Diavelin)](https://x.com/Diavelin) · [Discord (diavelin)](https://discord.com/users/163213047597498368)
 - Dışarıdan kod katkısı (pull request) kabul edilmez; izinsiz gönderilenler incelenmeden kapatılır.
 
 ## Lisans

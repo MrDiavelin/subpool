@@ -6,7 +6,7 @@ const toJson = (value) => JSON.stringify(value).replace(/</g, '\\u003c');
 // Ayar sayfasında kullanılmayan (sadece eklentinin içinde gösterilen) metinler sayfaya gönderilmez.
 const SERVER_ONLY = new Set([
   'manifestDesc', 'needAccountLabel', 'needAccount', 'loginFailed', 'quota', 'quotaReset', 'quotaHint', 'burst',
-  'archiveUnsupported', 'notInPack', 'keyRejected', 'failed', 'dualMissing',
+  'archiveUnsupported', 'notInPack', 'keyRejected', 'failed', 'dualMissing', 'quotaLeft', 'fansubBy',
 ]);
 const PAGE_STRINGS = Object.fromEntries(
   Object.entries(STRINGS).map(([ui, strings]) => [
@@ -35,7 +35,7 @@ function keyPanel(name, title, signup) {
   </div>`;
 }
 
-export function configurePage({ baseUrl, selected, ui, auth, sources, max, match, fallback, machine, hi, clean, gestdown, dual, maxLanguages, misconfigured }) {
+export function configurePage({ baseUrl, selected, ui, auth, sources, max, match, fallback, machine, hi, clean, gestdown, anisub, dual, prefer, maxLanguages, misconfigured }) {
   const langs = LANGUAGES.map(({ code, stremio, english, tag }) => ({ code, stremio, english, tag }));
   return `<!doctype html>
 <html lang="${ui || DEFAULT_UI}">
@@ -58,7 +58,7 @@ export function configurePage({ baseUrl, selected, ui, auth, sources, max, match
   h3 small { color:var(--muted); font-weight:400; font-size:13px; }
   p { margin:0 0 8px; color:var(--muted); }
   a { color:var(--accent); }
-  select, input[type=text], input[type=password], input[type=search] { padding:10px 12px; border-radius:10px; border:1px solid var(--line); background:var(--panel); color:var(--text); font-size:15px; outline:none; }
+  select, input[type=text], input[type=password], input[type=search], input[type=number] { padding:10px 12px; border-radius:10px; border:1px solid var(--line); background:var(--panel); color:var(--text); font-size:15px; outline:none; }
   select:focus, input:focus { border-color:var(--accent); }
   .panel { background:var(--panel); border:1px solid var(--line); border-radius:12px; }
   .panel + .panel { margin-top:12px; }
@@ -113,6 +113,7 @@ export function configurePage({ baseUrl, selected, ui, auth, sources, max, match
   code { display:block; padding:10px; background:#0006; border-radius:8px; word-break:break-all; font-size:13px; color:var(--muted); direction:ltr; text-align:left; }
   .warn { color:var(--danger); }
   #findForm input { flex:1; min-width:0; width:auto; }
+  #findShift { width:110px; }
   .titles { display:flex; flex-wrap:wrap; gap:6px; }
   .chip.on { border-color:var(--accent); background:#3a2f6e; }
   .subs li { flex-wrap:wrap; }
@@ -140,6 +141,7 @@ export function configurePage({ baseUrl, selected, ui, auth, sources, max, match
     <div><dt class="cost" data-i18n="tagQuota"></dt><dd data-i18n="howQuota"></dd></div>
     <div><dt class="free"><span data-i18n="tagSubdl"></span> / <span data-i18n="tagSubsource"></span></dt><dd data-i18n="howOther"></dd></div>
     <div><dt class="free" data-i18n="tagGestdown"></dt><dd data-i18n="howGestdown"></dd></div>
+    <div><dt class="free" data-i18n="tagAnisub"></dt><dd data-i18n="howAnisub"></dd></div>
     <div><dt class="free" data-i18n="tagDual"></dt><dd data-i18n="howDual"></dd></div>
     <div><dt>HI</dt><dd data-i18n="howHi"></dd></div>
     <div><dd><span data-i18n="vipNote"></span> <a href="https://www.opensubtitles.com/en/vip" target="_blank" rel="noopener" data-i18n="vipLink"></a></dd></div>
@@ -190,6 +192,11 @@ export function configurePage({ baseUrl, selected, ui, auth, sources, max, match
     <p data-i18n="gestdownIntro"></p>
     <label class="option"><input type="checkbox" id="gestdown"> <span data-i18n="gestdownLabel"></span></label>
   </div>
+  <div class="panel source" id="anisubPanel">
+    <h3>AniSub <small data-i18n="optional"></small></h3>
+    <p data-i18n="anisubIntro"></p>
+    <label class="option"><input type="checkbox" id="anisub"> <span data-i18n="anisubLabel"></span></label>
+  </div>
 
   <div class="panel source">
     <div class="row"><button class="btn secondary" id="test" type="button" data-i18n="testButton"></button></div>
@@ -219,6 +226,8 @@ export function configurePage({ baseUrl, selected, ui, auth, sources, max, match
     <p data-i18n="hiHint"></p>
     <label class="option"><input type="checkbox" id="clean"> <span data-i18n="cleanLabel"></span></label>
     <p data-i18n="cleanHint"></p>
+    <label class="option"><span data-i18n="priLabel"></span> <select id="pri"></select></label>
+    <p data-i18n="priHint"></p>
     <label class="option"><input type="checkbox" id="dual"> <span data-i18n="dualLabel"></span></label>
     <p data-i18n="dualHint"></p>
   </div>
@@ -252,10 +261,15 @@ export function configurePage({ baseUrl, selected, ui, auth, sources, max, match
       <label class="row"><span data-i18n="episodeLabel"></span> <select id="findEp"></select></label>
       <button class="btn secondary" id="findList" type="button" data-i18n="findList"></button>
     </div>
+    <div id="findShiftBox" hidden>
+      <label class="row"><span data-i18n="shiftLabel"></span> <input type="number" id="findShift" value="0" step="0.1" min="-600" max="600" inputmode="decimal"></label>
+      <p data-i18n="shiftHint"></p>
+    </div>
     <ol class="subs" id="findSubs" hidden></ol>
   </div>
 
   <p class="foot"><span data-i18n="codeText"></span> <a href="https://github.com/MrDiavelin/subpool" target="_blank" rel="noopener">github.com/MrDiavelin/subpool</a></p>
+  <p class="foot"><span data-i18n="contactText"></span> <a href="https://x.com/Diavelin" target="_blank" rel="noopener">X (@Diavelin)</a> · <a href="https://discord.com/users/163213047597498368" target="_blank" rel="noopener">Discord (diavelin)</a></p>
 </main>
 <script>
 const STRINGS = ${toJson(PAGE_STRINGS)};
@@ -276,10 +290,15 @@ let hi = ${toJson(hi || 'show')};
 let clean = ${toJson(!!clean)};
 // Gestdown anahtar istemeyen bir kaynaktır; şifreli parçada değil, adreste bir ayar olarak durur.
 let gestdown = ${toJson(!!gestdown)};
+// AniSub da anahtar istemez; adreste "as=1" olarak durur.
+let anisub = ${toJson(!!anisub)};
 let dual = ${toJson(!!dual)};
+// Listede öne alınacak kaynak ("pri"); boşsa hiçbiri.
+let prefer = ${toJson(prefer || '')};
+const PREFER_NAMES = { os: 'OpenSubtitles', sd: 'SubDL', ss: 'SubSource', adb: 'AltyazıDB', gd: 'Gestdown', as: 'AniSub' };
 const LIMITS = [5, 10, 15, 20];
 const HI_MODES = { show: 'hiShow', last: 'hiLast', hide: 'hiHide' };
-const SOURCE_NAMES = { os: 'OpenSubtitles', subdl: 'SubDL', subsource: 'SubSource', altyazidb: 'AltyazıDB', gestdown: 'Gestdown' };
+const SOURCE_NAMES = { os: 'OpenSubtitles', subdl: 'SubDL', subsource: 'SubSource', altyazidb: 'AltyazıDB', gestdown: 'Gestdown', anisub: 'AniSub' };
 let allowance = null;
 // Kaynak denemesinin durumu: null, 'running', bir hata metninin anahtarı ya da sonuç listesi.
 let tested = null;
@@ -325,7 +344,9 @@ if (!auth && !selected.length) {
     if (HI_MODES[saved?.hi]) hi = saved.hi;
     if (saved?.clean === true) clean = true;
     if (saved?.gestdown === true) gestdown = true;
+    if (saved?.anisub === true) anisub = true;
     if (saved?.dual === true) dual = true;
+    if (PREFER_NAMES[saved?.prefer]) prefer = saved.prefer;
     if (typeof saved?.auth === 'string' && saved.auth && saved.sources) {
       auth = saved.auth;
       sources = { ...NO_SOURCES, ...saved.sources };
@@ -396,7 +417,7 @@ function renderStatic() {
   $('altyazidbKey').placeholder = tr('apiKey');
   $('search').placeholder = tr('searchPlaceholder');
   $('findQuery').placeholder = tr('findPlaceholder');
-  $('findIntro').textContent = tr('findIntro', { quota: tr('tagQuota'), official: tr('tagOfficial') });
+  $('findIntro').textContent = tr('findIntro', { quota: tr('tagQuota'), official: tr('tagOfficial') }) + ' ' + tr('findAnisub', { anisub: tr('tagAnisub') });
   const limits = [...new Set([...LIMITS, max || LIMITS[0]])].sort((a, b) => a - b);
   $('limit').replaceChildren(new Option(tr('limitNone'), ''), ...limits.map((n) => new Option(String(n), String(n))));
   $('limit').value = max ? String(max) : '';
@@ -406,7 +427,10 @@ function renderStatic() {
   $('hi').replaceChildren(...Object.entries(HI_MODES).map(([mode, key]) => new Option(tr(key), mode)));
   $('hi').value = hi;
   $('clean').checked = clean;
+  $('pri').replaceChildren(new Option(tr('priNone'), ''), ...Object.entries(PREFER_NAMES).map(([code, name]) => new Option(name, code)));
+  $('pri').value = prefer;
   $('gestdown').checked = gestdown;
+  $('anisub').checked = anisub;
   $('dual').checked = dual;
   for (const name of ['os', 'subdl', 'subsource', 'altyazidb']) setMsg(name, messages[name]);
 }
@@ -424,7 +448,9 @@ function renderTest() {
   if (typeof tested === 'string') return line(tr(tested), 'error');
   for (const r of tested || []) {
     const source = SOURCE_NAMES[r.source] || r.source;
-    if (r.status === 'ok') {
+    if (r.status === 'ok' && r.reachable) {
+      line(tr('testReachable', { source }), 'good');
+    } else if (r.status === 'ok') {
       // Gestdown yalnızca dizi barındırdığı için orada film yerine örnek bir dizi bölümü aranır.
       const text = r.count > 0 ? tr(r.series ? 'testOkSeries' : 'testOk', { source, n: r.count }) : tr(r.series ? 'testEmptySeries' : 'testEmpty', { source });
       line(text + (r.remaining != null ? ' ' + tr('testRemaining', { n: r.remaining }) : ''), 'good');
@@ -497,11 +523,11 @@ function render() {
     available.append(p);
   }
 
-  const ready = (!!auth || gestdown) && selected.length > 0;
+  const ready = (!!auth || gestdown || anisub) && selected.length > 0;
   // Varsayılan liste ayarları adrese yazılmaz; eski adresler de aynen çalışır.
   const options = (max ? '&max=' + max : '') + (match ? '' : '&match=0') + (fallback ? '&fb=1' : '') +
     (hideMachine ? '&mt=0' : '') + (hi !== 'show' ? '&hi=' + hi : '') + (clean ? '&clean=1' : '') +
-    (gestdown ? '&gd=1' : '') + (dual ? '&dual=1' : '');
+    (gestdown ? '&gd=1' : '') + (anisub ? '&as=1' : '') + (dual ? '&dual=1' : '') + (prefer ? '&pri=' + prefer : '');
   const manifestUrl = BASE_URL + '/languages=' + selected.join(',') + '&ui=' + ui + options + (auth ? '&auth=' + auth : '') + '/manifest.json';
   const install = $('install');
   install.href = ready ? manifestUrl.replace(/^https?:\\/\\//, 'stremio://') : '#';
@@ -513,14 +539,14 @@ function render() {
   $('needSetup').hidden = ready;
   $('url').textContent = ready ? manifestUrl : '—';
   $('forget').hidden = !auth;
-  $('test').disabled = !(auth || gestdown) || tested === 'running';
+  $('test').disabled = !(auth || gestdown || anisub) || tested === 'running';
   renderTest();
   const base = ready ? manifestUrl.slice(0, -'/manifest.json'.length) : null;
   // Ayarlar değişince eski ayarlarla getirilmiş altyazı listesi gösterilmez.
   if (base !== addonBase) subs = null;
   addonBase = base;
   renderFind();
-  storageSet('saved', JSON.stringify({ auth, sources, selected, max, match, fallback, machine: !hideMachine, hi, clean, gestdown, dual }));
+  storageSet('saved', JSON.stringify({ auth, sources, selected, max, match, fallback, machine: !hideMachine, hi, clean, gestdown, anisub, dual, prefer }));
 }
 
 function renderFind() {
@@ -550,6 +576,7 @@ function renderFind() {
   const list = $('findSubs');
   list.replaceChildren();
   list.hidden = !addonBase || !subs;
+  $('findShiftBox').hidden = list.hidden || !subs.length;
   for (const item of (addonBase && subs) || []) {
     const li = document.createElement('li');
     const name = document.createElement('span');
@@ -647,6 +674,30 @@ function fileName(meta, item) {
   return title + episode + (item.url.includes('/dual/') ? '.dual' : '') + '.' + item.lang + '.srt';
 }
 
+/**
+ * SRT'nin zaman satırlarındaki bütün zamanları verilen milisaniye kadar kaydırır. Sıfırın altına düşen zaman 0 olur;
+ * tamamen başa sıkışan (bitişi de 0 olan) satırlar dosyadan çıkarılır.
+ */
+function shiftSrt(text, ms) {
+  const pad = (n, size) => String(n).padStart(size, '0');
+  const time = (h, m, s, f) => Math.max(0, ((Number(h) * 60 + Number(m)) * 60 + Number(s)) * 1000 + Number(f.padEnd(3, '0')) + ms);
+  const format = (t) => pad(Math.floor(t / 3600000), 2) + ':' + pad(Math.floor(t / 60000) % 60, 2) + ':' + pad(Math.floor(t / 1000) % 60, 2) + ',' + pad(t % 1000, 3);
+  const stamp = /([0-9]{1,2}):([0-9]{2}):([0-9]{2})[,.]([0-9]{1,3})/g;
+  const blocks = text.replace(/\\r\\n?/g, '\\n').split(/\\n{2,}/);
+  const kept = [];
+  for (const block of blocks) {
+    let gone = false;
+    const moved = block.replace(/^.*-->.*$/m, (line) => {
+      const shifted = line.replace(stamp, (_, h, m, s, f) => format(time(h, m, s, f)));
+      const ends = [...shifted.matchAll(stamp)];
+      if (ends.length === 2 && ends[1][0] === '00:00:00,000') gone = true;
+      return shifted;
+    });
+    if (!gone) kept.push(moved);
+  }
+  return kept.join('\\n\\n');
+}
+
 /** Altyazıyı indirir. Sunucu altyazı yerine bir uyarı döndürdüyse (ör. indirme hakkı bittiyse) dosya kaydedilmez, uyarı gösterilir. */
 async function download(item) {
   item.busy = true;
@@ -659,8 +710,10 @@ async function download(item) {
     if (!res.ok || (warning && !/\\n\\s*\\n/.test(warning[1]))) {
       findNote = { text: warning ? warning[1].split(/\\r?\\n/).join(' ') : tr('serverError'), error: true };
     } else {
+      const seconds = Math.max(-600, Math.min(600, Number($('findShift').value) || 0));
+      const body = seconds ? shiftSrt(text, Math.round(seconds * 1000)) : text;
       const link = document.createElement('a');
-      link.href = URL.createObjectURL(new Blob([text], { type: 'application/x-subrip' }));
+      link.href = URL.createObjectURL(new Blob([body], { type: 'application/x-subrip' }));
       link.download = item.file;
       document.body.append(link);
       link.click();
@@ -732,7 +785,7 @@ $('forget').addEventListener('click', () => {
 
 // Bağlı kaynaklarda örnek bir film aranır; yalnızca arama yapılır, indirme hakkı harcanmaz.
 $('test').addEventListener('click', async () => {
-  const asked = auth + '|' + gestdown;
+  const asked = auth + '|' + gestdown + '|' + anisub;
   tested = 'running';
   render();
   let outcome = 'serverError';
@@ -740,14 +793,14 @@ $('test').addEventListener('click', async () => {
     const res = await fetch(BASE_URL + '/api/test', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ auth, languages: selected, gestdown }),
+      body: JSON.stringify({ auth, languages: selected, gestdown, anisub }),
     });
     const data = await res.json().catch(() => ({}));
     if (res.ok && Array.isArray(data.results)) outcome = data.results;
     else if (res.status === 429) outcome = 'tooMany';
   } catch {}
   // Deneme sürerken kaynaklar değiştiyse eski sonuç gösterilmez.
-  tested = auth + '|' + gestdown === asked ? outcome : null;
+  tested = auth + '|' + gestdown + '|' + anisub === asked ? outcome : null;
   render();
 });
 
@@ -816,8 +869,17 @@ $('gestdown').addEventListener('change', () => {
   tested = null;
   render();
 });
+$('anisub').addEventListener('change', () => {
+  anisub = $('anisub').checked;
+  tested = null;
+  render();
+});
 $('dual').addEventListener('change', () => {
   dual = $('dual').checked;
+  render();
+});
+$('pri').addEventListener('change', () => {
+  prefer = PREFER_NAMES[$('pri').value] ? $('pri').value : '';
   render();
 });
 $('copy').addEventListener('click', async () => {

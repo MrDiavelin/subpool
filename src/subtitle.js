@@ -216,7 +216,8 @@ const SHIFT_STEP = 100;
  * Aynı videonun farklı sürümleri için hazırlanmış iki altyazı arasında çoğu zaman sabit bir zaman kayması olur
  * (biri diğerinden hep 2 saniye erken gibi). İkinci altyazının birinciye göre kaç milisaniye kaydırılması gerektiğini
  * bulur: satır başlangıçları arasındaki farklar sayılır, en çok tekrarlanan fark kaymadır.
- * Belirgin bir kayma yoksa (altyazılar zaten uyumluysa ya da hiç benzemiyorsa) 0 döner.
+ * Sonuç: { shift, score }. score, bulunan kaymada (kayma yoksa sıfır kaymada) birbirini tutan satır sayısıdır.
+ * Belirgin bir kayma yoksa (altyazılar zaten uyumluysa ya da hiç benzemiyorsa) shift 0'dır.
  */
 function timeShift(main, other) {
   const votes = new Map();
@@ -232,7 +233,7 @@ function timeShift(main, other) {
   let best = 0;
   for (const slot of votes.keys()) if (score(slot) > score(best)) best = slot;
   // Satırların en az dörtte biri aynı farkı göstermeli ve bu, kaydırmadan elde edilen uyumun en az iki katı olmalı.
-  if (!best || score(best) < Math.min(main.length, other.length) / 4 || score(best) < score(0) * 2) return 0;
+  if (!best || score(best) < Math.min(main.length, other.length) / 4 || score(best) < score(0) * 2) return { shift: 0, score: score(0) };
   // Kazanan dilimdeki farkların ortancası alınır.
   const diffs = [];
   from = 0;
@@ -244,22 +245,44 @@ function timeShift(main, other) {
     }
   }
   diffs.sort((a, b) => a - b);
-  return diffs[Math.floor(diffs.length / 2)] ?? 0;
+  return { shift: diffs[Math.floor(diffs.length / 2)] ?? 0, score: score(best) };
+}
+
+// Aynı film 23.976, 24 ve 25 kare/saniyelik sürümlerle yayımlanır. Altyazı başka hızdaki sürüm için hazırlanmışsa
+// satırlar arasındaki fark film boyunca giderek büyür; bu oranlarla ölçeklenmiş hali de denenir.
+const SPEED_RATIOS = [25 / 23.976, 23.976 / 25, 24 / 23.976, 23.976 / 24, 25 / 24, 24 / 25];
+
+/**
+ * İkinci altyazının birinciye uyması için gereken hız oranını ve kaymayı bulur: { ratio, shift }.
+ * Bir hız oranı, ancak satırların en az dörtte birini tutturuyor ve oransız halin en az 1,5 katı satırı
+ * tutturuyorsa seçilir; yoksa oran 1 kalır (yalnızca sabit kayma düzeltilir).
+ */
+function alignment(main, other) {
+  let best = { ratio: 1, ...timeShift(main, other) };
+  const enough = Math.min(main.length, other.length) / 4;
+  for (const ratio of SPEED_RATIOS) {
+    const scaled = other.map((cue) => ({ ...cue, start: cue.start * ratio, end: cue.end * ratio }));
+    const found = timeShift(main, scaled);
+    if (found.score >= enough && found.score >= best.score * 1.5) best = { ratio, ...found };
+  }
+  return best;
 }
 
 /**
  * İki dildeki altyazıyı tek dosyada birleştirir: birinci dilin her satırının altına, aynı anda ekranda olan ikinci
  * dil satırı italik olarak yazılır. Birinci dilde karşılığı olmayan satırlar kendi sürelerinde tek başına gösterilir.
- * İkinci altyazı birinciye göre sabit bir süre kaymışsa önce o kayma giderilir.
+ * İkinci altyazı birinciye göre sabit bir süre kaymışsa ya da başka kare hızındaki bir sürüm için hazırlanmışsa
+ * önce bu fark giderilir.
  * İkisinden biri SRT değilse (ya da yalnızca bir hata mesajıysa) null döner.
  */
 export function mergeSubtitles(primary, secondary) {
   const main = parseCues(primary);
   let other = parseCues(secondary);
   if (main.length < 2 || other.length < 2) return null;
-  const shift = timeShift(main, other);
-  if (shift) {
-    other = other.map((cue) => ({ ...cue, start: Math.max(0, cue.start + shift), end: cue.end + shift })).filter((cue) => cue.end > cue.start);
+  const { ratio, shift } = alignment(main, other);
+  if (shift || ratio !== 1) {
+    const move = (ms) => Math.round(ms * ratio + shift);
+    other = other.map((cue) => ({ ...cue, start: Math.max(0, move(cue.start)), end: move(cue.end) })).filter((cue) => cue.end > cue.start);
   }
 
   const attached = main.map(() => []);
