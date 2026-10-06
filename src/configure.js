@@ -277,10 +277,6 @@ export function configurePage({ baseUrl, selected, ui, auth, sources, max, match
   .curtains .valance { left:0; right:0; bottom:auto; width:auto; height:16px; background:linear-gradient(oklch(0.38 0.15 25),oklch(0.28 0.12 25)); box-shadow:0 6px 14px rgba(0,0,0,.5); border-radius:0 0 50% 50% / 0 0 100% 100%; }
   .lead { display:flex; flex-wrap:wrap; align-items:flex-start; gap:14px 40px; }
   .tagline { flex:1 1 420px; color:var(--muted); font-size:17px; text-wrap:pretty; }
-  .tipcol { flex:0 1 440px; display:flex; flex-direction:column; gap:8px; }
-  .tip { align-self:flex-start; display:flex; align-items:center; gap:8px; background:var(--surface); border:1px solid var(--line); color:var(--text); border-radius:999px; padding:6px 14px 6px 8px; font-weight:500; font-size:13px; text-align:start; }
-  .tipbadge { flex:none; background:var(--accent); color:var(--on-accent); border-radius:999px; padding:1px 8px; font-weight:700; font-size:11px; }
-  .tipcol p { color:var(--muted); font-size:14px; }
 
   .main { max-width:1200px; margin:0 auto; padding:0 24px 64px; display:flex; flex-wrap:wrap; gap:28px; align-items:flex-start; }
   .left { flex:1 1 560px; min-width:0; display:flex; flex-direction:column; gap:20px; }
@@ -534,10 +530,6 @@ ${misconfigured ? '<p class="warn"><b>Server misconfigured:</b> OS_API_KEY / CON
     </div>
     <div class="lead">
       <p class="tagline" data-i18n="tagline"></p>
-      <div class="tipcol">
-        <button class="tip" type="button" id="tipBtn" aria-expanded="false" aria-controls="tipText"><span class="tipbadge" data-i18n="tip"></span><span data-i18n="sideTitle"></span><span class="chev" id="tipChev" aria-hidden="true">+</span></button>
-        <p id="tipText" data-i18n="sideAddon" hidden></p>
-      </div>
     </div>
   </section>
 
@@ -864,7 +856,6 @@ let tab = location.hash === '#find' ? 'find' : 'setup';
 let step = 0;
 let openSrc = auth ? null : 'os';
 let trustOpen = false;
-let tipOpen = false;
 let legendOpen = false;
 // Hareket azaltma istenmişse perdedeki zaman ve örnek altyazılar akmaz.
 const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -948,7 +939,7 @@ function setMsg(name, key) {
 
 const hasSource = () => !!auth || gestdown || anisubOn();
 // AltyazıDB yalnızca Türkçe ve İngilizce altyazı verir; bu diller seçili değilse bölümü gösterilmez.
-const adbShown = () => !!sources.altyazidb || !selected.length || selected.some((code) => code === 'tr' || code === 'en');
+const adbShown = () => !!sources.altyazidb || ui === 'tr' || ui === 'en';
 const sourceList = () => [
   ['OpenSubtitles', !!sources.os], ['SubDL', !!sources.subdl], ['SubSource', !!sources.subsource],
   ...(adbShown() ? [['AltyazıDB', !!sources.altyazidb]] : []),
@@ -1052,9 +1043,6 @@ function renderView() {
   $('trustMore').hidden = !trustOpen;
   $('trustBtn').textContent = tr(trustOpen ? 'hide' : 'trustTitle');
   $('trustBtn').setAttribute('aria-expanded', String(trustOpen));
-  $('tipText').hidden = !tipOpen;
-  $('tipChev').textContent = tipOpen ? '−' : '+';
-  $('tipBtn').setAttribute('aria-expanded', String(tipOpen));
   $('legend').hidden = !legendOpen;
   $('legendChev').textContent = legendOpen ? '−' : '+';
   $('legendBtn').setAttribute('aria-expanded', String(legendOpen));
@@ -1636,7 +1624,6 @@ for (const name of KEY_SOURCES) {
   });
 }
 $('trustBtn').addEventListener('click', () => { trustOpen = !trustOpen; renderView(); });
-$('tipBtn').addEventListener('click', () => { tipOpen = !tipOpen; renderView(); });
 $('legendBtn').addEventListener('click', () => { legendOpen = !legendOpen; renderView(); });
 for (const b of document.querySelectorAll('[data-det]')) {
   b.addEventListener('click', () => {

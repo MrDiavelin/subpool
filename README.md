@@ -47,14 +47,13 @@ yapılmaz; bilinmiyorsa etiket sayısız görünür. Sunucu ve oynatıcı sayıy
 biraz gerisinde kalabilir.
 
 Ücretsiz OpenSubtitles hesabı günde 20, VIP hesap günde 1000 indirme hakkı verir. Liste görmek hak harcamaz.
-Bu yüzden SubPool'un ana altyazı eklentisinin **yanında, yan eklenti olarak** kullanılması önerilir.
 
 ## Kullanım
 
 1. Ayar sayfasını aç ve en az bir kaynak bağla: OpenSubtitles hesabı, SubDL anahtarı, SubSource anahtarı ve/veya AltyazıDB anahtarı.
    Hesap ya da anahtar istemeyen Gestdown (yalnızca diziler) ve AniSub (yalnızca Türkçe anime altyazısı) da tek başına
    ya da diğerlerinin yanında açılabilir. AltyazıDB yalnızca Türkçe ve İngilizce altyazı verdiği için kartı, bağlı
-   değilse yalnızca hiç dil seçilmemişken ya da seçili diller arasında Türkçe veya İngilizce varken görünür.
+   değilse yalnızca sayfa dili Türkçe ya da İngilizceyken görünür.
    OpenSubtitles için **opensubtitles.com** hesabının kullanıcı adı (e-posta değil) ve şifresi gerekir. opensubtitles.org
    hesabı ayrıdır ve burada geçmez; yalnızca .org'da hesabı olanlar onu https://www.opensubtitles.com/en/users/import
    adresinden .com'a aktarabilir.
