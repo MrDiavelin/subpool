@@ -53,7 +53,8 @@ Bu yüzden SubPool'un ana altyazı eklentisinin **yanında, yan eklenti olarak**
 
 1. Ayar sayfasını aç ve en az bir kaynak bağla: OpenSubtitles hesabı, SubDL anahtarı, SubSource anahtarı ve/veya AltyazıDB anahtarı.
    Hesap ya da anahtar istemeyen Gestdown (yalnızca diziler) ve AniSub (yalnızca Türkçe anime altyazısı) da tek başına
-   ya da diğerlerinin yanında açılabilir.
+   ya da diğerlerinin yanında açılabilir. AltyazıDB yalnızca Türkçe ve İngilizce altyazı verdiği için kartı, bağlı
+   değilse yalnızca hiç dil seçilmemişken ya da seçili diller arasında Türkçe veya İngilizce varken görünür.
    OpenSubtitles için **opensubtitles.com** hesabının kullanıcı adı (e-posta değil) ve şifresi gerekir. opensubtitles.org
    hesabı ayrıdır ve burada geçmez; yalnızca .org'da hesabı olanlar onu https://www.opensubtitles.com/en/users/import
    adresinden .com'a aktarabilir.
@@ -105,7 +106,7 @@ geçerli kalır.
 ### Gestdown
 
 [Gestdown](https://api.gestdown.info), Addic7ed'deki dizi altyazılarını sunan, hesap ve anahtar istemeyen bir servistir.
-Ayar sayfasındaki **Gestdown'ı kullan** kutusuyla açılır (adrese `gd=1` eklenir); varsayılan olarak kapalıdır.
+Ayar sayfasındaki **Gestdown** kartının düğmesiyle açılır (adrese `gd=1` eklenir); varsayılan olarak kapalıdır.
 
 - Yalnızca dizilerde çalışır; filmlerde altyazı getirmez.
 - Başka hiçbir kaynak bağlamadan, tek başına da kullanılabilir.
@@ -117,7 +118,7 @@ Ayar sayfasındaki **Gestdown'ı kullan** kutusuyla açılır (adrese `gd=1` ekl
 
 [AniSub](https://anisub.co), Türkçe anime altyazılarının paylaşıldığı bir sitedir ve hesap ya da anahtar istemeyen kendi
 Stremio eklentisini sunar. SubPool bu eklentiye, Stremio'nun resmi OpenSubtitles eklentisine bağlandığı gibi bağlanır.
-Ayar sayfasındaki **AniSub'ı kullan** kutusuyla açılır (adrese `as=1` eklenir); varsayılan olarak kapalıdır. Yalnızca Türkçe altyazı verdiği için bu kutu ayar sayfasında yalnızca sayfa dili Türkçeyken görünür; sayfa başka bir dildeyken AniSub adrese yazılmaz.
+Ayar sayfasındaki **AniSub** kartının düğmesiyle açılır (adrese `as=1` eklenir); varsayılan olarak kapalıdır. Yalnızca Türkçe altyazı verdiği için bu kart ayar sayfasında yalnızca sayfa dili Türkçeyken görünür; sayfa başka bir dildeyken AniSub adrese yazılmaz.
 
 - Yalnızca Türkçe seçiliyse kullanılır.
 - AniSub'ın sitesindeki açıklamaya göre eklentisi yalnızca AniSub'ın bir IMDb numarasıyla eşleştirdiği animelerde
@@ -142,7 +143,7 @@ Yine de bu adresi kimseyle paylaşma: adresi alan, senin indirme hakkını kulla
 
 ### Altyazı ara ve indir
 
-Harici bir oynatıcı kullananlar altyazıyı ayar sayfasındaki **Altyazı ara ve indir** bölümünden dosya olarak indirip
+Harici bir oynatıcı kullananlar altyazıyı ayar sayfasındaki **Altyazı ara ve indir** sekmesinden dosya olarak indirip
 oynatıcıya kendileri ekleyebilir.
 
 - Film ya da dizi adı (ya da IMDb numarası veya adresi) yazılır; dizilerde sezon ve bölüm seçilir.
@@ -223,7 +224,10 @@ Kodu incelerken bakılacak yerler:
   birlikte) AniSub'ın eklentisine sorar ([src/anisub.js](src/anisub.js)); kullanıcı adı, şifre ya da anahtar gönderilmez.
   Bir AniSub altyazısı seçildiğinde ise dosyayı oynatıcı doğrudan `anisub.co` adresinden indirir; bu istek kullanıcının
   cihazından çıkar.
-- **Altyazı arama bölümü:** Film ve dizi araması ile dizinin sezon listesi tarayıcıdan doğrudan Stremio'nun katalog
+- **Ayar sayfası açılırken başka bir sunucuya istek atılmaz.** Yazı tipleri ve logo eklentinin kendi sunucusundan gelir
+  ([src/fonts.js](src/fonts.js), [src/logo.js](src/logo.js)). Sayfadaki "Kahve ısmarla" bağlantısı yalnızca tıklanınca
+  `buymeacoffee.com` adresini açar.
+- **Altyazı arama sekmesi:** Film ve dizi araması ile dizinin sezon listesi tarayıcıdan doğrudan Stremio'nun katalog
   servisine (`v3-cinemeta.strem.io`) sorulur ([src/configure.js](src/configure.js)); bu isteklerde yalnızca aranan ad ya
   da yapım numarası gider. Altyazı listesi ve dosyalar, kurulum adresindeki ayarlarla eklentinin kendi sunucusundan alınır.
 - **Sunucu sahibinin indirme hakkı kullanılmaz.** Sunucudaki `OS_API_KEY` yalnızca uygulamayı OpenSubtitles'a tanıtır;

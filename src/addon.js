@@ -12,16 +12,17 @@ import { assToSrt, decodeSubtitle, errorSrt, mergeSubtitles, releaseSimilarity, 
 import { parseRelease, releaseMatch } from './release.js';
 import { fromStremioLang, gestdownCode, isLanguage, languageName, stremioLang, subdlCode, subsourceName } from './languages.js';
 import { configurePage } from './configure.js';
-import { LOGO_PNG } from './logo.js';
+import { LOGO_PNG, LOGO_SVG } from './logo.js';
+import { FONTS } from './fonts.js';
 import { createSealer, sha256 } from './crypto.js';
 import { MemoryStore, createStore } from './store.js';
 import { DEFAULT_UI, normalizeUi, t } from './i18n.js';
 
-const VERSION = '3.10.1';
+const VERSION = '3.11.0';
 const MAX_LANGUAGES = 10;
 // Kullanıcı isterse her dilde gösterilecek altyazı sayısını sınırlar; varsayılan sınırsızdır.
 const MAX_PER_LANGUAGE = 50;
-const ROUTES = new Set(['manifest.json', 'subtitles', 'sub', 'sd', 'ss', 'adb', 'gd', 'dual', 'message', 'configure', 'api']);
+const ROUTES = new Set(['manifest.json', 'subtitles', 'sub', 'sd', 'ss', 'adb', 'gd', 'dual', 'message', 'configure', 'api', 'fonts']);
 // Altyazı dosyası sunan yollar.
 const FILE_ROUTES = ['sub', 'sd', 'ss', 'adb', 'gd', 'dual'];
 
@@ -1161,6 +1162,15 @@ export function createAddon(env = process.env) {
       if (parts.length === 1 && (parts[0] === 'logo.png' || parts[0] === 'favicon.ico')) {
         res.setHeader('Cache-Control', 'public, max-age=86400');
         return send(res, 200, LOGO_PNG, 'image/png');
+      }
+      if (parts.length === 1 && parts[0] === 'logo.svg') {
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        return send(res, 200, LOGO_SVG, 'image/svg+xml');
+      }
+      // Ayar sayfasının yazı tipleri sunucunun kendisinden gelir; sayfa başka bir sunucuya istek atmaz.
+      if (parts.length === 2 && parts[0] === 'fonts' && Object.hasOwn(FONTS, parts[1].replace(/\.woff2$/, ''))) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        return send(res, 200, FONTS[parts[1].replace(/\.woff2$/, '')], 'font/woff2');
       }
       if (parts[0] === 'subtitles' && (parts.length === 3 || parts.length === 4)) {
         const last = parts.length - 1;
