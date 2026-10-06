@@ -8,3 +8,6 @@ node_modules/
 
 # Tanıtım görselleri depoya girmez
 tanitim/
+
+# Tasarım paketleri depoya girmez
+*.zip
