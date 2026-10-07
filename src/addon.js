@@ -18,7 +18,7 @@ import { createSealer, sha256 } from './crypto.js';
 import { MemoryStore, createStore } from './store.js';
 import { DEFAULT_UI, normalizeUi, t } from './i18n.js';
 
-const VERSION = '3.14.2';
+const VERSION = '3.14.3';
 const MAX_LANGUAGES = 10;
 // Kullanıcı isterse her dilde gösterilecek altyazı sayısını sınırlar; varsayılan sınırsızdır.
 const MAX_PER_LANGUAGE = 50;
@@ -195,7 +195,8 @@ export function createAddon(env = process.env) {
       types: ['movie', 'series', 'anime'],
       idPrefixes: ['tt', ...ANIME_SITES],
       catalogs: [],
-      behaviorHints: { configurable: true, configurationRequired: !config.hasSource || !config.languages.length },
+      // Deneme adresleri hesap bağlanmadan da kurulabilmelidir; yoksa Stremio kurmak yerine ayar sayfasını açar.
+      behaviorHints: { configurable: true, configurationRequired: !(config.assTest || config.fieldTest) && (!config.hasSource || !config.languages.length) },
       ...(STREMIO_ADDONS_SIGNATURE && { stremioAddonsConfig: { issuer: 'https://stremio-addons.net', signature: STREMIO_ADDONS_SIGNATURE } }),
     };
   }
