@@ -1,12 +1,16 @@
 const KITSU = 'https://anime-kitsu.strem.fun';
 
+// Stremio'nun Kitsu eklentisinin tanıdığı anime siteleri; kayıt numaraları "mal:16498" biçiminde yazılır.
+export const ANIME_SITES = ['kitsu', 'mal', 'anilist', 'anidb'];
+
 /**
- * Anime kataloglarındaki Kitsu numarasını IMDb numarasına çevirmek için Stremio'nun Kitsu eklentisine sorar.
- * Altyazı siteleri IMDb numarasıyla arandığı için animelerde bu çeviri gerekir.
- * Sonuç: { movie, imdb, episodes: { "<kitsu bölümü>": [imdb numarası, sezon, bölüm] } }
+ * Anime kataloglarındaki numarayı IMDb numarasına çevirmek için Stremio'nun Kitsu eklentisine sorar.
+ * Altyazı siteleri IMDb numarasıyla arandığı için animelerde bu çeviri gerekir. Eklenti MyAnimeList, AniList ve
+ * AniDB numaralarını da tanır ve hepsinde aynı Kitsu kaydını döndürür.
+ * Sonuç: { movie, imdb, episodes: { "<kayıttaki bölüm>": [imdb numarası, sezon, bölüm] } }
  */
-export async function kitsuMap(kitsuId) {
-  const res = await fetch(`${KITSU}/meta/series/kitsu:${encodeURIComponent(kitsuId)}.json`, {
+export async function kitsuMap(site, entry) {
+  const res = await fetch(`${KITSU}/meta/series/${site}:${encodeURIComponent(entry)}.json`, {
     signal: AbortSignal.timeout(6000),
   });
   if (!res.ok) throw new Error(`Kitsu ${res.status}`);

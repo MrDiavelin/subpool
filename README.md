@@ -11,7 +11,8 @@ her altyazının yanında **ücretsiz mi, yoksa senin indirme hakkından mı dü
 - İstenirse seçilen bir kaynağın ücretsiz altyazılarını her dilde öne alır.
 - Harici oynatıcı kullananlar için ayar sayfasında altyazı arayıp dosya olarak (istenirse zamanı kaydırarak) indirme
   bölümü vardır.
-- Anime kataloglarındaki (Kitsu) yapımlarda da çalışır; ASS/SSA biçimindeki altyazıları SRT'ye çevirir.
+- Anime kataloglarındaki yapımlarda da çalışır (Kitsu, MyAnimeList, AniList ve AniDB numaraları); ASS/SSA biçimindeki
+  altyazıları SRT'ye çevirir.
 - Türkçe karakter sorunlarını düzeltir (windows-1254 kodlama, `ý/þ/ð` → `ı/ş/ğ`).
 - 105 altyazı dili; ayar sayfası 11 dilde (TR, EN, ES, PT, FR, DE, AR, RU, ZH, JA, KO).
 - **Her kullanıcı kendi hesabı / anahtarıyla** çalışır; sunucu sahibinin hakkı hiçbir zaman kullanılmaz.
@@ -190,8 +191,9 @@ Eklenti Nuvio'da da çalışır: adresi kopyalayıp Nuvio'nun Eklentiler bölüm
   bölümün dosyası seçilir. 7z ve şifreli arşivler desteklenmez. RAR için `node-unrar-js` kullanılır.
 - **ASS/SSA:** Bu biçimdeki altyazılar SRT'ye çevrilir; italik korunur, renk/konum süslemeleri, çizimler ve karaoke
   efektleri atılır.
-- **Anime (Kitsu):** `kitsu:7442:3` gibi numaralar Stremio'nun Kitsu eklentisine (`anime-kitsu.strem.fun`) sorularak
-  IMDb numarasına ve sezon/bölüme çevrilir; karşılığı olmayan yapımlar için liste boş döner.
+- **Anime numaraları:** `kitsu:7442:3`, `mal:16498:3`, `anilist:16498:3` ve `anidb:9541:3` gibi numaralar Stremio'nun
+  Kitsu eklentisine (`anime-kitsu.strem.fun`) sorularak IMDb numarasına ve sezon/bölüme çevrilir; çeviri 24 saat
+  saklanır. Karşılığı olmayan yapımlar için liste boş döner.
 - **Anime bölüm numaraları:** Anime altyazıları çoğu zaman baştan sayılan numarayla yüklenir ("Hunter x Hunter - 75"),
   oynatıcı ise sezon/bölüm sorar (2. sezon 17. bölüm). Animelerde 2. ve sonraki sezonlar için bölüm iki numarayla da
   aranır; paketlerde "Ad - 05" gibi yazılmış dosyalar da tanınır. Sezon uzunlukları Cinemeta'dan (`v3-cinemeta.strem.io`) alınır.
@@ -278,6 +280,7 @@ SubDL ve SubSource anahtarları sunucuya değil, her kullanıcının kendi eklen
 
 ## Yenilikler
 
+- **3.13.0:** Kitsu'nun yanında MyAnimeList, AniList ve AniDB numaralarıyla gelen animeler de tanınır.
 - **3.12.1:** Kaynağın yanlış kodlamayla sunduğu İbranice, Arapça, Farsça, Yunanca ve Kiril alfabeli altyazılardaki
   bozuk harfler düzeltilir.
 - **3.12.0:** Etikette "Tam dosya eşleşmesi" ve "Sürüm adı uyuyor" notları; yalnızca yabancı konuşmaları içeren

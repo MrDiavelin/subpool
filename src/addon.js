@@ -5,7 +5,7 @@ import { ALTYAZIDB_LANGUAGES, AltyazidbClient } from './altyazidb.js';
 import { GestdownClient } from './gestdown.js';
 import { officialSubtitles } from './official.js';
 import { anisubReachable, anisubSubtitles } from './anisub.js';
-import { kitsuMap, kitsuSearch } from './kitsu.js';
+import { ANIME_SITES, kitsuMap, kitsuSearch } from './kitsu.js';
 import { seriesInfo } from './cinemeta.js';
 import { pickSubtitle, rarSelfTest, UnsupportedArchiveError } from './archive.js';
 import { assToSrt, decodeSubtitle, errorSrt, mergeSubtitles, releaseSimilarity, stripHearingImpaired, withNotice } from './subtitle.js';
@@ -18,7 +18,7 @@ import { createSealer, sha256 } from './crypto.js';
 import { MemoryStore, createStore } from './store.js';
 import { DEFAULT_UI, normalizeUi, t } from './i18n.js';
 
-const VERSION = '3.12.1';
+const VERSION = '3.13.0';
 const MAX_LANGUAGES = 10;
 // Kullanıcı isterse her dilde gösterilecek altyazı sayısını sınırlar; varsayılan sınırsızdır.
 const MAX_PER_LANGUAGE = 50;
@@ -185,7 +185,7 @@ export function createAddon(env = process.env) {
       logo: `${baseUrl}/logo.png`,
       resources: ['subtitles'],
       types: ['movie', 'series', 'anime'],
-      idPrefixes: ['tt', 'kitsu'],
+      idPrefixes: ['tt', ...ANIME_SITES],
       catalogs: [],
       behaviorHints: { configurable: true, configurationRequired: !config.hasSource || !config.languages.length },
       ...(STREMIO_ADDONS_SIGNATURE && { stremioAddonsConfig: { issuer: 'https://stremio-addons.net', signature: STREMIO_ADDONS_SIGNATURE } }),
@@ -500,11 +500,21 @@ export function createAddon(env = process.env) {
 
   // ---------- Liste ----------
 
-  /** Anime kataloglarındaki "kitsu:7442:3" gibi numaraları "tt2560140:1:3" biçimine çevirir; karşılığı yoksa null. */
-  async function resolveKitsu(id) {
-    const [, kitsuId, episode] = id.split(':');
-    if (!/^\d+$/.test(kitsuId || '')) return null;
-    const map = await cached(`kitsu:${kitsuId}`, KITSU_TTL, () => kitsuMap(kitsuId));
+  /** "mal:16498:3" gibi bir numaranın sitesini, kayıt numarasını ve bölümünü ayırır; anime sitesi numarası değilse null. */
+  function animeId(id) {
+    const [site, entry, episode] = String(id).split(':');
+    return ANIME_SITES.includes(site) ? { site, entry: entry || '', episode } : null;
+  }
+
+  const animeMap = (site, entry) => cached(`${site}:${entry}`, KITSU_TTL, () => kitsuMap(site, entry));
+
+  /**
+   * Anime kataloglarındaki "kitsu:7442:3", "mal:16498:3", "anilist:16498:3" ya da "anidb:9541:3" gibi numaraları
+   * "tt2560140:1:3" biçimine çevirir; karşılığı yoksa null.
+   */
+  async function resolveAnime({ site, entry, episode }) {
+    if (!/^\d+$/.test(entry)) return null;
+    const map = await animeMap(site, entry);
     if (map.movie || episode === undefined) return map.imdb;
     const found = map.episodes[episode];
     return found ? found.join(':') : null;
@@ -528,15 +538,14 @@ export function createAddon(env = process.env) {
 
     // Bu bölümün Kitsu'daki kaydı ve oradaki bölüm numarası.
     let entry = null;
-    if (id.startsWith('kitsu:')) {
-      const [, kitsuId, kitsuEpisode] = id.split(':');
-      const map = await cached(`kitsu:${kitsuId}`, KITSU_TTL, () => kitsuMap(kitsuId));
-      if (points(map, kitsuEpisode)) entry = { map, episode: kitsuEpisode };
+    const anime = animeId(id);
+    if (anime) {
+      const map = await animeMap(anime.site, anime.entry);
+      if (points(map, anime.episode)) entry = { map, episode: anime.episode };
     } else if (info?.animation && info.name) {
       const ids = await cached(`kitsu-ids:${imdbId}`, KITSU_TTL, async () =>
         (await kitsuSearch(info.name)).filter((m) => m.imdb === imdbId).map((m) => m.id).slice(0, 12));
-      const maps = await Promise.all(ids.map((kitsuId) =>
-        cached(`kitsu:${kitsuId}`, KITSU_TTL, () => kitsuMap(kitsuId)).catch(() => null)));
+      const maps = await Promise.all(ids.map((kitsuId) => animeMap('kitsu', kitsuId).catch(() => null)));
       for (const map of maps) {
         const kitsuEpisode = Object.keys(map?.episodes || {}).find((ep) => points(map, ep));
         if (kitsuEpisode) entry = entry || { map, episode: kitsuEpisode };
@@ -576,7 +585,8 @@ export function createAddon(env = process.env) {
       };
     }
 
-    const titleId = id.startsWith('kitsu:') ? await within(resolveKitsu(id), sourceDeadline) : id;
+    const anime = animeId(id);
+    const titleId = anime ? await within(resolveAnime(anime), sourceDeadline) : id;
     const [imdbId, season, episode] = String(titleId || '').split(':');
     if (!/^tt\d+$/.test(imdbId)) return { subtitles: [] };
     const ctx = {
