@@ -278,6 +278,8 @@ SubDL ve SubSource anahtarları sunucuya değil, her kullanıcının kendi eklen
 
 ## Yenilikler
 
+- **3.12.1:** Kaynağın yanlış kodlamayla sunduğu İbranice, Arapça, Farsça, Yunanca ve Kiril alfabeli altyazılardaki
+  bozuk harfler düzeltilir.
 - **3.12.0:** Etikette "Tam dosya eşleşmesi" ve "Sürüm adı uyuyor" notları; yalnızca yabancı konuşmaları içeren
   altyazılar işaretlenir ve grubunun sonuna alınır; **Kaynaklarımı dene** her kaynağın yanıt süresini de yazar.
 - **3.11.0:** Ayar sayfasının yeni tasarımı, yeni logo.

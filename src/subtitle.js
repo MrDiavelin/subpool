@@ -23,7 +23,44 @@ export function decodeSubtitle(buffer, lang) {
     text = new TextDecoder(LEGACY_ENCODINGS[lang] || 'windows-1252').decode(buffer);
   }
   if (lang === 'tr') text = fixTurkishMojibake(text);
-  return text;
+  return fixScriptMojibake(text, lang);
+}
+
+// Latin harfleriyle yazılmayan dillerin harf aralıkları.
+const CYRILLIC = /[\u0400-\u04ff]/g;
+const ARABIC = /[\u0600-\u06ff]/g;
+const SCRIPTS = {
+  he: /[\u0590-\u05ff]/g, el: /[\u0370-\u03ff]/g, ar: ARABIC, fa: ARABIC,
+  ru: CYRILLIC, bg: CYRILLIC, uk: CYRILLIC, sr: CYRILLIC, mk: CYRILLIC,
+};
+
+// windows-1252 (ve Latin-1) ile okunmuş her karakterin asıl bayt değeri.
+const WESTERN_BYTES = new Map();
+for (let byte = 0x80; byte <= 0xff; byte++) {
+  WESTERN_BYTES.set(String.fromCharCode(byte), byte);
+  WESTERN_BYTES.set(new TextDecoder('windows-1252').decode(Uint8Array.of(byte)), byte);
+}
+
+/**
+ * Bazı kaynaklar eski kod sayfasıyla kaydedilmiş altyazıyı Batı Avrupa metni sanıp UTF-8'e çevirerek sunar; İbranice
+ * metin "ùìåí" gibi aksanlı Latin harfleriyle görünür. Dilin kendi harfleri neredeyse hiç yokken aksanlı harfler yalın
+ * Latin harflerinden fazlaysa karakterler asıl baytlarına döndürülüp dilin kod sayfasıyla yeniden okunur.
+ */
+function fixScriptMojibake(text, lang) {
+  const script = SCRIPTS[lang];
+  if (!script) return text;
+  const count = (pattern, value) => (value.match(pattern) || []).length;
+  const accented = count(/[\u00c0-\u00ff]/g, text);
+  if (accented < 20 || accented <= count(/[a-z]/gi, text) || accented < count(script, text) * 10) return text;
+
+  const decoder = new TextDecoder(LEGACY_ENCODINGS[lang]);
+  const table = new Map([...WESTERN_BYTES].map(([ch, byte]) => [ch, decoder.decode(Uint8Array.of(byte))]));
+  // Kod sayfasında karşılığı olmayan karakterler (♪ gibi) olduğu gibi kalır.
+  const fixed = text.replace(/[^\x00-\x7f]/g, (ch) => {
+    const proper = table.get(ch);
+    return proper && proper !== '\ufffd' ? proper : ch;
+  });
+  return count(script, fixed) >= accented * 0.7 ? fixed : text;
 }
 
 function fixTurkishMojibake(text) {
