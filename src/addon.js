@@ -18,7 +18,7 @@ import { createSealer, sha256 } from './crypto.js';
 import { MemoryStore, createStore } from './store.js';
 import { DEFAULT_UI, normalizeUi, t } from './i18n.js';
 
-const VERSION = '3.14.3';
+const VERSION = '3.14.4';
 const MAX_LANGUAGES = 10;
 // Kullanıcı isterse her dilde gösterilecek altyazı sayısını sınırlar; varsayılan sınırsızdır.
 const MAX_PER_LANGUAGE = 50;
@@ -185,19 +185,21 @@ export function createAddon(env = process.env) {
     const langs = config.languages.map((code) => languageName(code, ui)).join(', ') || '—';
     const sources = [config.os && 'OpenSubtitles', config.subdl && 'SubDL', config.subsource && 'SubSource', config.altyazidb && 'AltyazıDB', config.gestdown && 'Gestdown', config.anisub && 'AniSub']
       .filter(Boolean).join(', ') || '—';
+    // Deneme adresleri ayrı bir eklenti olarak kurulur: kimliği ve adı farklıdır, asıl eklentiyle karışmaz;
+    // hesap bağlanmadan kurulabilir ve Stremio'da "Ayarla" düğmesi çıkmaz.
+    const test = config.assTest || config.fieldTest;
     return {
-      id: 'community.diavelin.subpool',
+      id: test ? 'community.diavelin.subpool.test' : 'community.diavelin.subpool',
       version: VERSION,
-      name: 'SubPool by Diavelin',
+      name: test ? 'SubPool TEST' : 'SubPool by Diavelin',
       description: t(ui, 'manifestDesc', { langs, sources }),
       logo: `${baseUrl}/logo.png`,
       resources: ['subtitles'],
       types: ['movie', 'series', 'anime'],
       idPrefixes: ['tt', ...ANIME_SITES],
       catalogs: [],
-      // Deneme adresleri hesap bağlanmadan da kurulabilmelidir; yoksa Stremio kurmak yerine ayar sayfasını açar.
-      behaviorHints: { configurable: true, configurationRequired: !(config.assTest || config.fieldTest) && (!config.hasSource || !config.languages.length) },
-      ...(STREMIO_ADDONS_SIGNATURE && { stremioAddonsConfig: { issuer: 'https://stremio-addons.net', signature: STREMIO_ADDONS_SIGNATURE } }),
+      behaviorHints: test ? { configurable: false, configurationRequired: false } : { configurable: true, configurationRequired: !config.hasSource || !config.languages.length },
+      ...(!test && STREMIO_ADDONS_SIGNATURE && { stremioAddonsConfig: { issuer: 'https://stremio-addons.net', signature: STREMIO_ADDONS_SIGNATURE } }),
     };
   }
 
