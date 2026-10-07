@@ -7,7 +7,7 @@ const toJson = (value) => JSON.stringify(value).replace(/</g, '\\u003c');
 // Ayar sayfasında kullanılmayan (sadece eklentinin içinde gösterilen) metinler sayfaya gönderilmez.
 const SERVER_ONLY = new Set([
   'manifestDesc', 'needAccountLabel', 'needAccount', 'loginFailed', 'quota', 'quotaReset', 'quotaHint', 'burst',
-  'archiveUnsupported', 'notInPack', 'keyRejected', 'failed', 'dualMissing', 'fansubBy',
+  'archiveUnsupported', 'notInPack', 'keyRejected', 'failed', 'dualMissing', 'fansubBy', 'matchFile', 'matchRelease', 'forced',
 ]);
 const PAGE_STRINGS = Object.fromEntries(
   Object.entries(STRINGS).map(([ui, strings]) => [
@@ -1069,14 +1069,16 @@ function renderTest() {
   if (typeof tested === 'string') return line(tr(tested), 'error');
   for (const r of tested || []) {
     const source = SOURCE_NAMES[r.source] || r.source;
+    // Yanıt süresi satırın sonuna yazılır: listeyi hangi kaynağın beklettiği buradan anlaşılır.
+    const took = typeof r.ms === 'number' ? ' (' + r.ms + ' ms)' : '';
     if (r.status === 'ok' && r.reachable) {
-      line(tr('testReachable', { source }), 'good');
+      line(tr('testReachable', { source }) + took, 'good');
     } else if (r.status === 'ok') {
       // Gestdown yalnızca dizi barındırdığı için orada film yerine örnek bir dizi bölümü aranır.
       const text = r.count > 0 ? tr(r.series ? 'testOkSeries' : 'testOk', { source, n: r.count }) : tr(r.series ? 'testEmptySeries' : 'testEmpty', { source });
-      line(text + (r.remaining != null ? ' ' + tr('testRemaining', { n: r.remaining }) : ''), 'good');
+      line(text + (r.remaining != null ? ' ' + tr('testRemaining', { n: r.remaining }) : '') + took, 'good');
     } else {
-      line(r.status === 'login' ? tr('testBadLogin') : tr(r.status === 'key' ? 'testBadKey' : 'testFailed', { source }), 'error');
+      line(r.status === 'login' ? tr('testBadLogin') : r.status === 'key' ? tr('testBadKey', { source }) : tr('testFailed', { source }) + took, 'error');
     }
   }
 }

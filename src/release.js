@@ -77,6 +77,20 @@ export function releaseMatch(video, sub) {
 }
 
 /**
+ * Altyazının sürüm adı videonun dosya adıyla aynı sürümü mü gösteriyor? Etikete yazılan "sürüm adı uyuyor" notu
+ * puana değil bu açık kurala bağlıdır: aynı grup, aynı kaynak, aynı kurgu; sezon ve bölüm numarası çelişmiyor.
+ * Grubu ya da kaynağı okunamayan adlar için hiçbir şey söylenmez.
+ */
+export function sameRelease(video, sub) {
+  if (!video.group || video.group !== sub.group) return false;
+  if (!video.source || video.source !== sub.source) return false;
+  if (video.edition !== sub.edition) return false;
+  if (video.episode !== null && sub.episode !== null && video.episode !== sub.episode) return false;
+  if (video.season !== null && sub.season !== null && video.season !== sub.season) return false;
+  return true;
+}
+
+/**
  * Bir dosya ya da sürüm adındaki sezon ve bölüm numarasını bulur: S01E02, 1x02, E02, Bölüm 2.
  * Bunlar yoksa animelerdeki yalın yazımı dener: "[Grup] Ad - 05 [1080p]", "Ad S2 - 05", "Ad_075_(BD)".
  * Sonuç: { season, episode } — bulunamayan null olur.

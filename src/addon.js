@@ -9,7 +9,7 @@ import { kitsuMap, kitsuSearch } from './kitsu.js';
 import { seriesInfo } from './cinemeta.js';
 import { pickSubtitle, rarSelfTest, UnsupportedArchiveError } from './archive.js';
 import { assToSrt, decodeSubtitle, errorSrt, mergeSubtitles, releaseSimilarity, stripHearingImpaired, withNotice } from './subtitle.js';
-import { parseRelease, releaseMatch } from './release.js';
+import { parseRelease, releaseMatch, sameRelease } from './release.js';
 import { fromStremioLang, gestdownCode, isLanguage, languageName, stremioLang, subdlCode, subsourceName } from './languages.js';
 import { configurePage } from './configure.js';
 import { LOGO_PNG, LOGO_SVG } from './logo.js';
@@ -18,7 +18,7 @@ import { createSealer, sha256 } from './crypto.js';
 import { MemoryStore, createStore } from './store.js';
 import { DEFAULT_UI, normalizeUi, t } from './i18n.js';
 
-const VERSION = '3.11.1';
+const VERSION = '3.12.0';
 const MAX_LANGUAGES = 10;
 // Kullanıcı isterse her dilde gösterilecek altyazı sayısını sınırlar; varsayılan sınırsızdır.
 const MAX_PER_LANGUAGE = 50;
@@ -267,7 +267,7 @@ export function createAddon(env = process.env) {
   }
 
   function searchOpenSubtitles({ imdbId, season, episode, languages, moviehash }) {
-    const key = `search2:${imdbId}:${season ?? ''}:${episode ?? ''}:${languages.join(',')}:${moviehash || ''}`;
+    const key = `search3:${imdbId}:${season ?? ''}:${episode ?? ''}:${languages.join(',')}:${moviehash || ''}`;
     return cached(key, SEARCH_TTL, async () => {
       const results = await client.searchAll({ imdbId, season, episode, languages, moviehash });
       // Önbellekte yer kaplamasın diye sadece sıralama için gereken alanlar saklanır.
@@ -286,6 +286,8 @@ export function createAddon(env = process.env) {
           machine: a.ai_translated || a.machine_translated ? 1 : 0,
           downloads: a.download_count || 0,
           hi: a.hearing_impaired ? 1 : 0,
+          // Yalnızca yabancı dildeki konuşmaları içeren altyazı: filmin tamamını çevirmez.
+          forced: a.foreign_parts_only ? 1 : 0,
         });
       }
       return compact;
@@ -624,15 +626,18 @@ export function createAddon(env = process.env) {
       seen.add(r.key);
       let score = 0;
       let release = r.release;
+      let same = false;
       if (r.hash) score += 1000;
       if (video) {
         // Bir altyazı birden fazla sürüme uyabilir; videoya en çok uyan sürüm adı sayılır ve etikette o gösterilir.
         let best = -Infinity;
         for (const name of r.releases?.length ? r.releases : [r.release]) {
-          const fit = releaseMatch(video, parseRelease(name)) + releaseSimilarity(name, extra.filename) * 40;
+          const info = parseRelease(name);
+          const fit = releaseMatch(video, info) + releaseSimilarity(name, extra.filename) * 40;
           if (fit > best) {
             best = fit;
             release = name;
+            same = sameRelease(video, info);
           }
         }
         score += best;
@@ -642,19 +647,19 @@ export function createAddon(env = process.env) {
       if (r.trusted) score += 20;
       if (r.machine) score -= 500;
       score += Math.log10(1 + (r.downloads || 0)) * 10;
-      items.push({ ...r, release, score });
+      items.push({ ...r, release, score, same });
     }
 
     // Liste filtreleri: makine çevirileri ve işitme engelli (HI) altyazılar isteğe bağlı olarak gizlenir.
     const visible = items.filter((r) => (config.machine || !r.machine) && (config.hi !== 'hide' || !r.hi));
 
-    // Sıra: önce dil, sonra ücretsiz olanlar (hak harcayanlar hep altta), istenirse HI olanlar sonda,
-    // sonra kullanıcının öne aldığı kaynak, en son videoya uygunluk.
+    // Sıra: önce dil, sonra ücretsiz olanlar (hak harcayanlar hep altta), yalnızca yabancı konuşmaları içerenler
+    // kendi grubunun sonunda, istenirse HI olanlar sonda, sonra kullanıcının öne aldığı kaynak, en son videoya uygunluk.
     const languages = config.languages;
     const order = (r) => {
       const index = languages.indexOf(r.lang);
-      return (index === -1 ? 99 : index) * 8 + (r.source === 'quota' ? 4 : 0) + (config.hi === 'last' && r.hi ? 2 : 0) +
-        (config.prefer && SITE[r.source] !== config.prefer ? 1 : 0);
+      return (index === -1 ? 99 : index) * 16 + (r.source === 'quota' ? 8 : 0) + (r.forced ? 4 : 0) +
+        (config.hi === 'last' && r.hi ? 2 : 0) + (config.prefer && SITE[r.source] !== config.prefer ? 1 : 0);
     };
     visible.sort((x, y) => order(x) - order(y) || y.score - x.score);
     // Yedek dil: yalnızca altyazısı bulunan ilk dil gösterilir; sonraki diller o dilde hiç altyazı yoksa devreye girer.
@@ -678,9 +683,12 @@ export function createAddon(env = process.env) {
     // Stremio `label`i gösterir; Nuvio TV ise `id`yi gösterir. Bu yüzden id de etiketi taşır (tekrarlar numaralanır).
     const used = new Map();
     const subtitles = [...dual, ...shown].map((r) => {
+      // Uyum notu satır başına en fazla bir tanedir: dosyanın kendisi eşleştiyse o, yoksa sürüm adı.
+      const fit = r.hash ? t(ui, 'matchFile') : r.same ? t(ui, 'matchRelease') : '';
       // HI: işitme engelliler için (ses ve müzik açıklamaları da yazılı).
+      const notes = [fit, r.forced && t(ui, 'forced'), r.hi && 'HI'].filter(Boolean).map((note) => ` · ${note}`).join('');
       const name = r.fansub ? t(ui, 'fansubBy', { name: r.release }) : r.release;
-      const label = `${r.tag || tags[r.source]}${r.hi ? ' · HI' : ''} | ${name || languageName(r.lang, ui)}`;
+      const label = `${r.tag || tags[r.source]}${notes} | ${name || languageName(r.lang, ui)}`;
       const count = (used.get(label) || 0) + 1;
       used.set(label, count);
       return {
@@ -697,13 +705,14 @@ export function createAddon(env = process.env) {
    * Çift dilli altyazılar: birinci dilin en uygun altyazıları, ikinci dilde sürümü en çok benzeyen altyazıyla eşlenir.
    * Yalnızca eklentinin kendi sunduğu ve hak harcamayan altyazılar kullanılır: "Resmi" altyazılar Stremio'nun
    * sunucusundan geldiği için, hak harcayanlar ise kullanıcının haberi olmadan hak harcanmasın diye dışarıda kalır.
+   * Yalnızca yabancı konuşmaları içeren altyazılar da kullanılmaz: çoğu satırın karşılığı olmazdı.
    * `items` uygunluk sırasına dizilmiş olmalıdır.
    */
   function dualItems(config, items, baseUrl) {
     const ui = config.ui || DEFAULT_UI;
     const [first, second] = config.languages;
     const own = `${baseUrl}/${configSegment(config)}/`;
-    const usable = (lang) => items.filter((r) => r.lang === lang && r.source !== 'quota' && r.url.startsWith(own));
+    const usable = (lang) => items.filter((r) => r.lang === lang && r.source !== 'quota' && !r.forced && r.url.startsWith(own));
     const seconds = usable(second).map((item) => ({ item, info: parseRelease(item.release) }));
     if (!seconds.length) return [];
     const tag = `${t(ui, 'tagDual')} · ${languageName(first, ui)} + ${languageName(second, ui)}`;
@@ -720,7 +729,8 @@ export function createAddon(env = process.env) {
         }
       }
       const refs = [main.url.slice(own.length), best.item.url.slice(own.length)];
-      return { source: 'dual', tag, lang: first, release: main.release, hi: main.hi, url: `${own}dual/${b64(refs)}.srt` };
+      // Birleşik altyazı birinci dilin zamanlarını taşır; uyum notu da ondan gelir.
+      return { source: 'dual', tag, lang: first, release: main.release, hi: main.hi, hash: main.hash, same: main.same, url: `${own}dual/${b64(refs)}.srt` };
     });
   }
 
@@ -1080,7 +1090,7 @@ export function createAddon(env = process.env) {
       anisub: config.anisub && (async () => ({ reachable: await anisubReachable(ANISUB_AGENT) })),
     };
 
-    const results = await Promise.all(Object.entries(tests).filter(([, run]) => run).map(async ([source, run]) => {
+    const outcome = async (source, run) => {
       try {
         return { source, status: 'ok', ...(await within(run(), sourceDeadline)) };
       } catch (err) {
@@ -1090,6 +1100,12 @@ export function createAddon(env = process.env) {
         console.error(`[test] ${source}: ${err.message}`);
         return { source, status: 'error' };
       }
+    };
+    // Her kaynağın yanıt süresi de söylenir: listeyi hangisinin beklettiği buradan anlaşılır.
+    const results = await Promise.all(Object.entries(tests).filter(([, run]) => run).map(async ([source, run]) => {
+      const started = Date.now();
+      const result = await outcome(source, run);
+      return { ...result, ms: Date.now() - started };
     }));
     return sendJson(res, { results });
   }

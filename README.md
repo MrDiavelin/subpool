@@ -1,10 +1,11 @@
 # SubPool by Diavelin – Stremio altyazı eklentisi
 
-OpenSubtitles, SubDL ve SubSource'taki altyazıları Stremio'da **tek listede** toplar ve her altyazının
-yanında **ücretsiz mi, yoksa senin indirme hakkından mı düşeceğini** yazar.
+OpenSubtitles, SubDL, SubSource, AltyazıDB, Gestdown ve AniSub'daki altyazıları Stremio'da **tek listede** toplar ve
+her altyazının yanında **ücretsiz mi, yoksa senin indirme hakkından mı düşeceğini** yazar.
 
 - Her dilde önce ücretsiz altyazıları, sonra hak harcayanları gösterir; her grubun içinde videonun dosya adına/hash'ine
-  en uygun olan üstte, makine çevirileri grubun sonunda durur.
+  en uygun olan üstte, makine çevirileri ve yalnızca yabancı konuşmaları içeren altyazılar grubun sonunda durur.
+- Videonun dosyasıyla eşleşen ya da sürüm adı uyan altyazıları etikette belirtir.
 - İstenirse ilk iki dilin altyazısını tek altyazıda birleştirir (çift dilli altyazı); iki altyazı arasındaki sabit
   zaman farkını ve kare hızı farkını düzeltir.
 - İstenirse seçilen bir kaynağın ücretsiz altyazılarını her dilde öne alır.
@@ -39,6 +40,17 @@ Canlı adres: **https://subpool-diavelin.vercel.app**
 | `[Çift dilli] ✓ Ücretsiz · Türkçe + İngilizce` | İlk iki dilin altyazısı tek altyazıda birleştirilmiştir (üstte birinci dil, altında italik olarak ikinci dil); hak harcamaz. |
 
 Etiketin sonundaki `· HI`, altyazının işitme engelliler için hazırlandığını (sesler ve müzik de yazılı) gösterir.
+
+Etikette şu notlar da yazabilir:
+
+| Not | Anlamı |
+|---|---|
+| `· Tam dosya eşleşmesi` | OpenSubtitles, altyazının oynattığın video dosyasının kendisiyle (dosyanın hash'iyle) eşleştiğini bildirdi. Oynatıcı dosyanın hash'ini gönderirse görünür. |
+| `· Sürüm adı uyuyor` | "Akıllı sürüm eşleştirme" açıkken ve oynatıcı dosya adını gönderdiğinde: altyazının sürüm adı, videonun dosya adıyla aynı sürüm grubunu, aynı kaynağı (BluRay, WEB…) ve aynı kurguyu (Extended, Director's Cut…) gösteriyor; sezon/bölüm numarası da çelişmiyor. Bir puana değil bu kurala bağlıdır; grubu ya da kaynağı okunamayan adlarda yazmaz. |
+| `· Yabancı konuşmalar` | OpenSubtitles bu altyazıyı "yalnızca yabancı dildeki konuşmalar" olarak işaretlemiş; filmin tamamını çevirmez. Bu altyazılar kendi grubunun (ücretsiz ya da hak harcayan) sonunda durur ve çift dilli altyazıda kullanılmaz. |
+
+Bir satırda en fazla bir uyum notu olur: dosya eşleşmesi varsa yalnızca o yazar. Notlar kaynağın verdiği bilgiye ve
+dosya adına dayanır; altyazının senkron olacağının garantisi değildir.
 
 "1 hak harcar" etiketinde OpenSubtitles hesabının o gün kalan indirme hakkı da yazabilir:
 `[OpenSubtitles] 1 hak harcar · bugün 17 kaldı`. Bu sayı yalnızca sunucu onu zaten biliyorsa gösterilir: son
@@ -135,7 +147,8 @@ seçtiğin dillerde arar ve kaynağın çalışıp çalışmadığını, kaç al
 altyazı indirilmez, indirme hakkı harcanmaz. OpenSubtitles hesabı bağlıysa deneme sırasında hesaba giriş yapılır ve
 OpenSubtitles bildirirse o gün kalan indirme hakkı da gösterilir. Gestdown açıksa, yalnızca dizi barındırdığı için orada
 film yerine örnek bir dizi bölümü (Breaking Bad, 1. sezon 1. bölüm) aranır. AniSub açıksa arama yapılmaz; yalnızca
-AniSub'ın eklentisine ulaşılıp ulaşılamadığına bakılır.
+AniSub'ın eklentisine ulaşılıp ulaşılamadığına bakılır. Her satırın sonunda o kaynağın yanıt süresi milisaniye olarak
+yazar (ör. `(420 ms)`); sonucu önbellekte duran bir arama çok kısa sürede döner.
 
 Şifre ve anahtarlar, sana özel eklenti adresinin içinde sunucu anahtarıyla şifrelenmiş olarak durur; sunucuda saklanmaz. Ayar sayfası, bilgileri yeniden girmemen için bu şifreli adresi kullandığın tarayıcıda da hatırlar; "Bilgilerimi bu tarayıcıdan sil" butonuyla silinir.
 Yine de bu adresi kimseyle paylaşma: adresi alan, senin indirme hakkını kullanabilir.
@@ -262,6 +275,16 @@ Kodu başkalarının kullanımına açık bir sunucuda yayımlamak izne bağlıd
 | `PUBLIC_URL` | Eklentinin dış adresi; genelde boş bırakılır |
 
 SubDL ve SubSource anahtarları sunucuya değil, her kullanıcının kendi eklenti adresine girilir.
+
+## Yenilikler
+
+- **3.12.0:** Etikette "Tam dosya eşleşmesi" ve "Sürüm adı uyuyor" notları; yalnızca yabancı konuşmaları içeren
+  altyazılar işaretlenir ve grubunun sonuna alınır; **Kaynaklarımı dene** her kaynağın yanıt süresini de yazar.
+- **3.11.0:** Ayar sayfasının yeni tasarımı, yeni logo.
+- **3.10.0:** Etikette kalan indirme hakkı, öne alınacak kaynak, çift dilli altyazıda kare hızı düzeltmesi, indirirken
+  kaydırma, AniSub kaynağı.
+- **3.9.0:** Gestdown kaynağı, çift dilli altyazı, altyazı ara ve indir.
+- **3.8.0:** Liste filtreleri, yedek dil, ses açıklaması temizliği, kaynak denemesi.
 
 ## Hata bildirimi ve katkı
 
