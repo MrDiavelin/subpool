@@ -8,7 +8,7 @@ import { anisubReachable, anisubSubtitles } from './anisub.js';
 import { ANIME_SITES, kitsuMap, kitsuSearch } from './kitsu.js';
 import { seriesInfo } from './cinemeta.js';
 import { pickSubtitle, rarSelfTest, UnsupportedArchiveError } from './archive.js';
-import { assToSrt, decodeSubtitle, errorSrt, isAss, mergeSubtitles, releaseSimilarity, stripHearingImpaired, withNotice } from './subtitle.js';
+import { assSample, assToSrt, decodeSubtitle, errorSrt, isAss, mergeSubtitles, releaseSimilarity, stripHearingImpaired, withNotice } from './subtitle.js';
 import { parseRelease, releaseMatch, sameRelease } from './release.js';
 import { fromStremioLang, gestdownCode, isLanguage, languageName, stremioLang, subdlCode, subsourceName } from './languages.js';
 import { configurePage } from './configure.js';
@@ -18,7 +18,7 @@ import { createSealer, sha256 } from './crypto.js';
 import { MemoryStore, createStore } from './store.js';
 import { DEFAULT_UI, normalizeUi, t } from './i18n.js';
 
-const VERSION = '3.14.0';
+const VERSION = '3.14.1';
 const MAX_LANGUAGES = 10;
 // Kullanıcı isterse her dilde gösterilecek altyazı sayısını sınırlar; varsayılan sınırsızdır.
 const MAX_PER_LANGUAGE = 50;
@@ -146,7 +146,9 @@ export function createAddon(env = process.env) {
       machine: params.get('mt') !== '0',
       hi: hi === 'last' || hi === 'hide' ? hi : 'show',
       clean: params.get('clean') === '1',
-      ass: params.get('ass') === '1',
+      ass: params.get('ass') === '1' || params.get('ass') === 'test',
+      // Deneme: listenin başına, oynatıcının ASS stilini gösterip göstermediğini sınayan iki örnek altyazı eklenir.
+      assTest: params.get('ass') === 'test',
       gestdown: params.get('gd') === '1',
       anisub: params.get('as') === '1',
       dual: params.get('dual') === '1',
@@ -1222,6 +1224,8 @@ export function createAddon(env = process.env) {
         const extra = parts.length === 4 ? Object.fromEntries(new URLSearchParams(parts[3])) : {};
         const { subtitles, partial, remaining } = await getSubtitles(config, type, id, extra, baseUrl);
         console.log(`[addon] ${id} [${config.languages.join(',')}]: ${subtitles.length} altyazı${partial ? ' (eksik)' : ''}${extra.filename ? ` (${extra.filename})` : ''}`);
+        // Aynı dosya iki adresle sunulur: gerçek dosyalar gibi ".srt" ve Stremio'nun belgesinde önerilen ".ass" uzantısıyla.
+        if (config.assTest) subtitles.unshift(...['srt', 'ass'].map((ext) => ({ id: `subpool-ass-test-${ext}`, url: `${baseUrl}/message/${ui}/asstest.${ext}`, lang: `ASS test (.${ext})` })));
         const cacheMaxAge = !config.hasSource ? 0 : partial ? PARTIAL_TTL : remaining != null ? QUOTA_INFO_TTL : SEARCH_TTL;
         return sendJson(res, { subtitles, cacheMaxAge });
       }
@@ -1237,6 +1241,10 @@ export function createAddon(env = process.env) {
       }
       if (parts[0] === 'message' && parts.length === 3) {
         const messageUi = normalizeUi(parts[1]) || DEFAULT_UI;
+        if (/^asstest.(srt|ass)$/.test(parts[2])) {
+          console.log(`[addon] ASS deneme dosyası istendi (${parts[2]}): ${String(req.headers['user-agent'] || '').slice(0, 80)}`);
+          return send(res, 200, assSample(messageUi === 'tr'), ASS);
+        }
         return send(res, 200, errorSrt(t(messageUi, 'needAccount')), SRT);
       }
       return sendJson(res, { error: 'not found' }, 404);

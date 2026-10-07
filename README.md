@@ -101,6 +101,9 @@ biraz gerisinde kalabilir.
   - OpenSubtitles altyazıları her zaman SRT olarak gelir. Bir arşivde hem `.srt` hem `.ass` dosyası varsa `.srt` seçilir.
     AniSub altyazıları doğrudan AniSub'dan açıldığı için bu ayardan etkilenmez.
   - 3 MB'tan büyük ASS/SSA dosyaları SRT'ye çevrilerek verilir.
+  - Oynatıcıyı denemek için: adreste `ass=1` yerine `ass=test` yazılırsa listenin başına "ASS test (.srt)" ve
+    "ASS test (.ass)" adlı iki deneme altyazısı eklenir. İkisi de aynı dosyadır: üstte kırmızı, ortada sarı ve eğik, sol
+    altta mavi ve büyük, altta beyaz (bir sözcüğü yeşil) dört satır. Stil uygulanmıyorsa hepsi aynı renkte çıkar.
 - **Çift dilli altyazı** (varsayılan: kapalı): Açıkken listenin başına, sıradaki ilk iki dili aynı anda gösteren en fazla
   3 altyazı eklenir: üstte birinci dil, altında italik olarak ikinci dil (adrese `dual=1` eklenir). En az iki dil
   seçilmiş olmalıdır.
@@ -290,6 +293,7 @@ SubDL ve SubSource anahtarları sunucuya değil, her kullanıcının kendi eklen
 
 ## Yenilikler
 
+- **3.14.1:** Oynatıcının ASS stilini gösterip göstermediğini denemek için `ass=test` ile açılan iki deneme altyazısı.
 - **3.14.0:** "ASS/SSA stilini koru (Deneysel)" ayarı: ASS/SSA altyazılar SRT'ye çevrilmeden, stiliyle gönderilir.
 - **3.13.0:** Kitsu'nun yanında MyAnimeList, AniList ve AniDB numaralarıyla gelen animeler de tanınır.
 - **3.12.1:** Kaynağın yanlış kodlamayla sunduğu İbranice, Arapça, Farsça, Yunanca ve Kiril alfabeli altyazılardaki

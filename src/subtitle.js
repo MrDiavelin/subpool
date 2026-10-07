@@ -360,6 +360,25 @@ export function withNotice(text, line) {
   return toSrt([{ start: 0, end: Math.min(5000, cues[0].start - 200), text: line }, ...cues]);
 }
 
+/**
+ * Oynatıcının ASS stilini uygulayıp uygulamadığını göstermek için küçük bir deneme dosyası (adreste "ass=test").
+ * Her satır nasıl görünmesi gerektiğini kendisi söyler; stil uygulanmazsa hepsi aynı renkte ve aynı yerde çıkar.
+ */
+export function assSample(turkish) {
+  const text = turkish
+    ? ['KIRMIZI ve ÜSTTE', 'SARI, EĞİK ve ORTADA', 'MAVİ, BÜYÜK ve SOL ALTTA', 'Bu satır beyaz ve altta; yalnızca şu sözcük {\\c&H00FF00&}YEŞİL{\\c&HFFFFFF&} olmalı.']
+    : ['RED and at the TOP', 'YELLOW, ITALIC and in the MIDDLE', 'BLUE, LARGE and at the BOTTOM LEFT', 'This line is white and at the bottom; only this word should be {\\c&H00FF00&}GREEN{\\c&HFFFFFF&}.'];
+  const style = (name, size, colour, italic, alignment) => `Style: ${name},Arial,${size},${colour},&H000000FF,&H00000000,&H80000000,0,${italic},0,0,100,100,0,0,1,3,1,${alignment},40,40,40,1`;
+  return [
+    '[Script Info]', 'Title: SubPool ASS test', 'ScriptType: v4.00+', 'PlayResX: 1920', 'PlayResY: 1080', 'WrapStyle: 0', 'ScaledBorderAndShadow: yes', '',
+    '[V4+ Styles]',
+    'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding',
+    style('Default', 54, '&H00FFFFFF', 0, 2), style('Top', 64, '&H000000FF', 0, 8), style('Middle', 64, '&H0000FFFF', -1, 5), style('Corner', 96, '&H00FFAA33', 0, 1), '',
+    '[Events]', 'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    ...['Top', 'Middle', 'Corner', 'Default'].map((name, i) => `Dialogue: 0,0:00:00.00,3:00:00.00,${name},,0,0,0,,${text[i]}`), '',
+  ].join('\n');
+}
+
 export function errorSrt(lines) {
   return `1\n00:00:00,000 --> 00:00:15,000\n${lines.join('\n')}\n`;
 }
