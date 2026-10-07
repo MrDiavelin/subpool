@@ -294,6 +294,7 @@ SubDL ve SubSource anahtarları sunucuya değil, her kullanıcının kendi eklen
 ## Yenilikler
 
 - **3.14.1:** Oynatıcının ASS stilini gösterip göstermediğini denemek için `ass=test` ile açılan iki deneme altyazısı.
+- **3.14.2:** Oynatıcının altyazı listesinde hangi bilgiyi gösterdiğini denemek için adrese `test=fields` eklenince açılan dört deneme altyazısı.
 - **3.14.0:** "ASS/SSA stilini koru (Deneysel)" ayarı: ASS/SSA altyazılar SRT'ye çevrilmeden, stiliyle gönderilir.
 - **3.13.0:** Kitsu'nun yanında MyAnimeList, AniList ve AniDB numaralarıyla gelen animeler de tanınır.
 - **3.12.1:** Kaynağın yanlış kodlamayla sunduğu İbranice, Arapça, Farsça, Yunanca ve Kiril alfabeli altyazılardaki

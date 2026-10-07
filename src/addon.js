@@ -18,7 +18,7 @@ import { createSealer, sha256 } from './crypto.js';
 import { MemoryStore, createStore } from './store.js';
 import { DEFAULT_UI, normalizeUi, t } from './i18n.js';
 
-const VERSION = '3.14.1';
+const VERSION = '3.14.2';
 const MAX_LANGUAGES = 10;
 // Kullanıcı isterse her dilde gösterilecek altyazı sayısını sınırlar; varsayılan sınırsızdır.
 const MAX_PER_LANGUAGE = 50;
@@ -149,6 +149,8 @@ export function createAddon(env = process.env) {
       ass: params.get('ass') === '1' || params.get('ass') === 'test',
       // Deneme: listenin başına, oynatıcının ASS stilini gösterip göstermediğini sınayan iki örnek altyazı eklenir.
       assTest: params.get('ass') === 'test',
+      // Deneme: listenin başına, oynatıcının altyazı listesinde hangi alanı gösterdiğini sınayan örnek altyazılar eklenir.
+      fieldTest: params.get('test') === 'fields',
       gestdown: params.get('gd') === '1',
       anisub: params.get('as') === '1',
       dual: params.get('dual') === '1',
@@ -1226,6 +1228,19 @@ export function createAddon(env = process.env) {
         console.log(`[addon] ${id} [${config.languages.join(',')}]: ${subtitles.length} altyazı${partial ? ' (eksik)' : ''}${extra.filename ? ` (${extra.filename})` : ''}`);
         // Aynı dosya iki adresle sunulur: gerçek dosyalar gibi ".srt" ve Stremio'nun belgesinde önerilen ".ass" uzantısıyla.
         if (config.assTest) subtitles.unshift(...['srt', 'ass'].map((ext) => ({ id: `subpool-ass-test-${ext}`, url: `${baseUrl}/message/${ui}/asstest.${ext}`, lang: `ASS test (.${ext})` })));
+        // Her alanda başka bir yazı vardır; oynatıcının listesinde hangisi görünüyorsa o alan kullanılıyordur.
+        // Üçüncüde etiket yoktur, dördüncünün dili bir dil kodu değildir. Dosyalar kendi numarasını gösterir: sıra da sınanır.
+        if (config.fieldTest) {
+          const lang = stremioLang(config.languages[0] || 'en');
+          subtitles.unshift(...[1, 2, 3, 4].map((n) => ({
+            id: `KIMLIK-${n}`,
+            url: `${baseUrl}/message/${ui}/fieldtest-${n}.srt`,
+            lang: n === 4 ? 'DIL-4' : lang,
+            ...(n === 3 ? {} : { label: `ETIKET-${n}` }),
+            title: `BASLIK-${n}`,
+            name: `AD-${n}`,
+          })));
+        }
         const cacheMaxAge = !config.hasSource ? 0 : partial ? PARTIAL_TTL : remaining != null ? QUOTA_INFO_TTL : SEARCH_TTL;
         return sendJson(res, { subtitles, cacheMaxAge });
       }
@@ -1244,6 +1259,11 @@ export function createAddon(env = process.env) {
         if (/^asstest.(srt|ass)$/.test(parts[2])) {
           console.log(`[addon] ASS deneme dosyası istendi (${parts[2]}): ${String(req.headers['user-agent'] || '').slice(0, 80)}`);
           return send(res, 200, assSample(messageUi === 'tr'), ASS);
+        }
+        const fieldTest = /^fieldtest-([1-4])\.srt$/.exec(parts[2]);
+        if (fieldTest) {
+          console.log(`[addon] Liste deneme dosyası istendi (${fieldTest[1]}): ${String(req.headers['user-agent'] || '').slice(0, 80)}`);
+          return send(res, 200, `1\n00:00:00,000 --> 03:00:00,000\n${messageUi === 'tr' ? 'Deneme altyazısı' : 'Test subtitle'} ${fieldTest[1]}\n`, SRT);
         }
         return send(res, 200, errorSrt(t(messageUi, 'needAccount')), SRT);
       }
