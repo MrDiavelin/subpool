@@ -94,8 +94,11 @@ biraz gerisinde kalabilir.
   Parantez içindeki çevirmen notları da silinir. "Resmi" etiketli altyazılar Stremio'nun sunucusundan geldiği için
   onlara dokunulamaz.
 - **ASS/SSA stilini koru (Deneysel)** (varsayılan: kapalı): Açıkken ASS/SSA biçimindeki altyazılar SRT'ye çevrilmeden,
-  kendi yazı tipi, renk ve konum bilgisiyle gönderilir (adrese `ass=1` eklenir). Stilin görünmesi oynatıcıya ve
-  oynatıcının kendi ASS ayarına bağlıdır; altyazı görünmez ya da bozuk görünürse ayarı kapatmak yeterlidir.
+  kendi yazı tipi, renk ve konum bilgisiyle gönderilir (adrese `ass=1` eklenir). Altyazı görünmez ya da bozuk
+  görünürse ayarı kapatmak yeterlidir.
+  - Stilin görünmesi için oynatıcının kendi ASS ayarının da açılması gerekir: Stremio'da bu, oynatıcı ayarlarındaki ASS
+    stil seçeneğidir (Stremio'nun belgesinde adı "Style ASS subtitles"). Bilgisayardaki Stremio'da denendi; diğer
+    oynatıcılar henüz denenmedi.
   - Bu dosyalarda ses açıklamaları temizlenmez; SRT dosyalarında temizlik aynen sürer.
   - Çift dilli altyazılar ve "Altyazı ara ve indir" bölümü yine SRT kullanır.
   - OpenSubtitles altyazıları her zaman SRT olarak gelir. Bir arşivde hem `.srt` hem `.ass` dosyası varsa `.srt` seçilir.
@@ -297,6 +300,7 @@ SubDL ve SubSource anahtarları sunucuya değil, her kullanıcının kendi eklen
 - **3.14.2:** Oynatıcının altyazı listesinde hangi bilgiyi gösterdiğini denemek için adrese `test=fields` eklenince açılan dört deneme altyazısı.
 - **3.14.3:** Deneme adresleri (`ass=test`, `test=fields`) hesap bağlanmadan da kurulabilir.
 - **3.14.4:** Deneme adresleri "SubPool TEST" adıyla ayrı bir eklenti olarak kurulur; asıl eklentiyle karışmaz.
+- **3.14.5:** "ASS/SSA stilini koru" açıklamasına, oynatıcının kendi ASS ayarının da açılması gerektiği yazıldı.
 - **3.14.0:** "ASS/SSA stilini koru (Deneysel)" ayarı: ASS/SSA altyazılar SRT'ye çevrilmeden, stiliyle gönderilir.
 - **3.13.0:** Kitsu'nun yanında MyAnimeList, AniList ve AniDB numaralarıyla gelen animeler de tanınır.
 - **3.12.1:** Kaynağın yanlış kodlamayla sunduğu İbranice, Arapça, Farsça, Yunanca ve Kiril alfabeli altyazılardaki
