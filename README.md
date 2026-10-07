@@ -12,7 +12,7 @@ her altyazının yanında **ücretsiz mi, yoksa senin indirme hakkından mı dü
 - Harici oynatıcı kullananlar için ayar sayfasında altyazı arayıp dosya olarak (istenirse zamanı kaydırarak) indirme
   bölümü vardır.
 - Anime kataloglarındaki yapımlarda da çalışır (Kitsu, MyAnimeList, AniList ve AniDB numaraları); ASS/SSA biçimindeki
-  altyazıları SRT'ye çevirir.
+  altyazıları SRT'ye çevirir, istenirse stiliyle olduğu gibi gönderir (deneysel).
 - Türkçe karakter sorunlarını düzeltir (windows-1254 kodlama, `ý/þ/ð` → `ı/ş/ğ`).
 - 105 altyazı dili; ayar sayfası 11 dilde (TR, EN, ES, PT, FR, DE, AR, RU, ZH, JA, KO).
 - **Her kullanıcı kendi hesabı / anahtarıyla** çalışır; sunucu sahibinin hakkı hiçbir zaman kullanılmaz.
@@ -93,6 +93,14 @@ biraz gerisinde kalabilir.
   ♪ işaretli şarkı satırları ve `JOHN:` gibi büyük harfle yazılmış konuşmacı adları çıkarılır (adrese `clean=1` eklenir).
   Parantez içindeki çevirmen notları da silinir. "Resmi" etiketli altyazılar Stremio'nun sunucusundan geldiği için
   onlara dokunulamaz.
+- **ASS/SSA stilini koru (Deneysel)** (varsayılan: kapalı): Açıkken ASS/SSA biçimindeki altyazılar SRT'ye çevrilmeden,
+  kendi yazı tipi, renk ve konum bilgisiyle gönderilir (adrese `ass=1` eklenir). Stilin görünmesi oynatıcıya ve
+  oynatıcının kendi ASS ayarına bağlıdır; altyazı görünmez ya da bozuk görünürse ayarı kapatmak yeterlidir.
+  - Bu dosyalarda ses açıklamaları temizlenmez; SRT dosyalarında temizlik aynen sürer.
+  - Çift dilli altyazılar ve "Altyazı ara ve indir" bölümü yine SRT kullanır.
+  - OpenSubtitles altyazıları her zaman SRT olarak gelir. Bir arşivde hem `.srt` hem `.ass` dosyası varsa `.srt` seçilir.
+    AniSub altyazıları doğrudan AniSub'dan açıldığı için bu ayardan etkilenmez.
+  - 3 MB'tan büyük ASS/SSA dosyaları SRT'ye çevrilerek verilir.
 - **Çift dilli altyazı** (varsayılan: kapalı): Açıkken listenin başına, sıradaki ilk iki dili aynı anda gösteren en fazla
   3 altyazı eklenir: üstte birinci dil, altında italik olarak ikinci dil (adrese `dual=1` eklenir). En az iki dil
   seçilmiş olmalıdır.
@@ -190,7 +198,9 @@ Eklenti Nuvio'da da çalışır: adresi kopyalayıp Nuvio'nun Eklentiler bölüm
 - **SubDL / SubSource:** Arşivler (ZIP, RAR ve bir arşivin içindeki arşiv) sunucuda açılır; sezon paketlerinde doğru
   bölümün dosyası seçilir. 7z ve şifreli arşivler desteklenmez. RAR için `node-unrar-js` kullanılır.
 - **ASS/SSA:** Bu biçimdeki altyazılar SRT'ye çevrilir; italik korunur, renk/konum süslemeleri, çizimler ve karaoke
-  efektleri atılır.
+  efektleri atılır. "ASS/SSA stilini koru" açıksa, `[Script Info]` bölümüyle başlayan ve konuşma satırı içeren dosyalar
+  çevrilmeden, `text/x-ssa` içerik türüyle verilir; dosya adresi yine `.srt` ile biter. Önbellekte dosyanın özgün hâli
+  durur, SRT'ye çevirme dosya istenirken yapılır; bu yüzden ayarı açıp kapatmak dosyayı yeniden indirtmez.
 - **Anime numaraları:** `kitsu:7442:3`, `mal:16498:3`, `anilist:16498:3` ve `anidb:9541:3` gibi numaralar Stremio'nun
   Kitsu eklentisine (`anime-kitsu.strem.fun`) sorularak IMDb numarasına ve sezon/bölüme çevrilir; çeviri 24 saat
   saklanır. Karşılığı olmayan yapımlar için liste boş döner.
@@ -280,6 +290,7 @@ SubDL ve SubSource anahtarları sunucuya değil, her kullanıcının kendi eklen
 
 ## Yenilikler
 
+- **3.14.0:** "ASS/SSA stilini koru (Deneysel)" ayarı: ASS/SSA altyazılar SRT'ye çevrilmeden, stiliyle gönderilir.
 - **3.13.0:** Kitsu'nun yanında MyAnimeList, AniList ve AniDB numaralarıyla gelen animeler de tanınır.
 - **3.12.1:** Kaynağın yanlış kodlamayla sunduğu İbranice, Arapça, Farsça, Yunanca ve Kiril alfabeli altyazılardaki
   bozuk harfler düzeltilir.

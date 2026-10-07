@@ -72,6 +72,11 @@ function fixTurkishMojibake(text) {
 
 const ASS_FIELDS = ['layer', 'start', 'end', 'style', 'name', 'marginl', 'marginr', 'marginv', 'effect', 'text'];
 
+/** Stiliyle sunulabilecek ASS/SSA dosyası mı: standart "[Script Info]" bölümüyle başlar ve konuşma satırı içerir. */
+export function isAss(text) {
+  return /^\s*\[Script Info\]/i.test(text) && /^\s*\[Events\]/im.test(text) && /^\s*Dialogue:/im.test(text);
+}
+
 /**
  * ASS/SSA biçimindeki (çoğunlukla anime) altyazıyı SRT'ye çevirir; başka biçimdeki metne dokunmaz.
  * Renk, konum gibi süslemeler atılır; italik korunur. Çizimler ve karaoke efektleri alınmaz.

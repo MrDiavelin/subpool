@@ -8,7 +8,7 @@ import { anisubReachable, anisubSubtitles } from './anisub.js';
 import { ANIME_SITES, kitsuMap, kitsuSearch } from './kitsu.js';
 import { seriesInfo } from './cinemeta.js';
 import { pickSubtitle, rarSelfTest, UnsupportedArchiveError } from './archive.js';
-import { assToSrt, decodeSubtitle, errorSrt, mergeSubtitles, releaseSimilarity, stripHearingImpaired, withNotice } from './subtitle.js';
+import { assToSrt, decodeSubtitle, errorSrt, isAss, mergeSubtitles, releaseSimilarity, stripHearingImpaired, withNotice } from './subtitle.js';
 import { parseRelease, releaseMatch, sameRelease } from './release.js';
 import { fromStremioLang, gestdownCode, isLanguage, languageName, stremioLang, subdlCode, subsourceName } from './languages.js';
 import { configurePage } from './configure.js';
@@ -18,7 +18,7 @@ import { createSealer, sha256 } from './crypto.js';
 import { MemoryStore, createStore } from './store.js';
 import { DEFAULT_UI, normalizeUi, t } from './i18n.js';
 
-const VERSION = '3.13.0';
+const VERSION = '3.14.0';
 const MAX_LANGUAGES = 10;
 // Kullanıcı isterse her dilde gösterilecek altyazı sayısını sınırlar; varsayılan sınırsızdır.
 const MAX_PER_LANGUAGE = 50;
@@ -60,6 +60,9 @@ const PREFER = { os: 'os', sd: 'subdl', ss: 'subsource', adb: 'altyazidb', gd: '
 const ANISUB_AGENT = `SubPool/${VERSION} (+https://github.com/MrDiavelin/subpool; https://x.com/Diavelin)`;
 
 const SRT = 'application/x-subrip; charset=utf-8';
+const ASS = 'text/x-ssa; charset=utf-8';
+// Stili korunarak saklanacak ASS/SSA dosyası için üst sınır; daha büyük dosyalar SRT'ye çevrilir.
+const ASS_MAX_BYTES = 3 * 1024 * 1024;
 
 class LoginError extends Error {}
 class TimeoutError extends Error {}
@@ -126,7 +129,7 @@ export function createAddon(env = process.env) {
    * altyazılar sonda ya da gizli), "clean=1" (ses açıklamaları temizlenir), "gd=1" (Gestdown kaynağı açık; anahtar
    * gerektirmediği için şifreli parçada yer almaz), "as=1" (AniSub kaynağı açık; o da anahtar istemez),
    * "dual=1" (ilk iki dil tek altyazıda birleştirilir), "pri=os|sd|ss|adb|gd|as" (bu kaynağın ücretsiz
-   * altyazıları her dilde öne alınır).
+   * altyazıları her dilde öne alınır), "ass=1" (ASS/SSA biçimindeki altyazılar SRT'ye çevrilmeden verilir).
    * Şifre çözülemezse kullanıcının anahtar isteyen hiçbir kaynağı yok sayılır.
    */
   function parseConfig(segment) {
@@ -143,6 +146,7 @@ export function createAddon(env = process.env) {
       machine: params.get('mt') !== '0',
       hi: hi === 'last' || hi === 'hide' ? hi : 'show',
       clean: params.get('clean') === '1',
+      ass: params.get('ass') === '1',
       gestdown: params.get('gd') === '1',
       anisub: params.get('as') === '1',
       dual: params.get('dual') === '1',
@@ -160,7 +164,7 @@ export function createAddon(env = process.env) {
 
   /** Altyazı dosyası adreslerine yazılan ayar bölümü; dosya açılırken gereken ayarları taşır. */
   function configSegment(config) {
-    return `languages=${config.languages.join(',')}&ui=${config.ui || DEFAULT_UI}${config.clean ? '&clean=1' : ''}${config.auth ? `&auth=${config.auth}` : ''}`;
+    return `languages=${config.languages.join(',')}&ui=${config.ui || DEFAULT_UI}${config.clean ? '&clean=1' : ''}${config.ass ? '&ass=1' : ''}${config.auth ? `&auth=${config.auth}` : ''}`;
   }
 
   function sourceSummary(config) {
@@ -773,10 +777,21 @@ export function createAddon(env = process.env) {
   // ---------- Dosyalar ----------
 
   /**
-   * Kullanıcı istediyse ses açıklamalarını çıkarır. Önbellekteki dosya herkes için ortak olduğundan ona dokunulmaz;
-   * temizlik her açılışta, yalnızca isteyen kullanıcıya giden metinde yapılır.
+   * Önbellekteki dosya herkes için ortaktır: stili korunabilecek ASS/SSA dosyaları kaynaktan geldiği gibi, diğerleri
+   * SRT olarak saklanır.
    */
-  const tidy = (config, text) => (config.clean ? stripHearingImpaired(text) : text);
+  const storable = (raw) => (isAss(raw) && Buffer.byteLength(raw) <= ASS_MAX_BYTES ? raw.trimStart() : assToSrt(raw));
+
+  /**
+   * Önbellekteki dosyayı kullanıcının ayarlarına göre hazırlar; biçim çevirme ve ses açıklaması temizliği her
+   * açılışta, yalnızca o kullanıcıya giden metinde yapılır. "ASS/SSA stilini koru" açıksa ASS/SSA dosyası olduğu
+   * gibi verilir; temizlik yalnızca SRT'de yapılabildiği için o dosyalara uygulanmaz.
+   */
+  function tidy(config, stored) {
+    if (config.ass && isAss(stored)) return stored;
+    const text = assToSrt(stored);
+    return config.clean ? stripHearingImpaired(text) : text;
+  }
 
   /**
    * Kısa sürede art arda gelen hak harcayan istekleri durdurur. Bazı oynatıcılar listedeki bütün
@@ -819,7 +834,7 @@ export function createAddon(env = process.env) {
 
     const res = await fetch(info.link, { signal: AbortSignal.timeout(20000) });
     if (!res.ok) throw new Error(`Altyazı dosyası indirilemedi: ${res.status}`);
-    const text = assToSrt(decodeSubtitle(new Uint8Array(await res.arrayBuffer()), lang));
+    const text = storable(decodeSubtitle(new Uint8Array(await res.arrayBuffer()), lang));
     await store.set(cacheKey, text, FILE_TTL);
     if (titleId) await addToPool(titleId, `os:${fileId}`);
     rememberRemaining(config.os, info.remaining);
@@ -839,7 +854,7 @@ export function createAddon(env = process.env) {
       throw err;
     }
     if (!bytes) return errorSrt(t(ui, 'notInPack'));
-    const text = assToSrt(decodeSubtitle(bytes, lang));
+    const text = storable(decodeSubtitle(bytes, lang));
     await store.set(cacheKey, text, FILE_TTL);
     return tidy(config, text);
   }
@@ -886,7 +901,7 @@ export function createAddon(env = process.env) {
       if (err.status === 404 && episode) return errorSrt(t(ui, 'notInPack'));
       throw err;
     }
-    const text = assToSrt(decodeSubtitle(bytes, lang));
+    const text = storable(decodeSubtitle(bytes, lang));
     await store.set(cacheKey, text, FILE_TTL);
     return tidy(config, text);
   }
@@ -896,7 +911,7 @@ export function createAddon(env = process.env) {
     const hit = await store.get(cacheKey);
     if (hit) return tidy(config, hit);
     const bytes = await new GestdownClient({ userAgent: USER_AGENT }).download(id);
-    const text = assToSrt(decodeSubtitle(bytes, lang));
+    const text = storable(decodeSubtitle(bytes, lang));
     await store.set(cacheKey, text, FILE_TTL);
     return tidy(config, text);
   }
@@ -922,6 +937,7 @@ export function createAddon(env = process.env) {
   /**
    * Çift dilli altyazı: adres iki dosya yolunu taşır; ikisi de alınır ve tek SRT'de birleştirilir.
    * İkinci dil alınamazsa birinci dil tek başına verilir. Hiçbir durumda indirme hakkı harcanmaz.
+   * Birleştirme SRT üzerinde yapıldığı için ASS/SSA dosyaları burada her zaman SRT'ye çevrilir.
    */
   async function getDualFile(config, token) {
     const ui = config.ui || DEFAULT_UI;
@@ -933,7 +949,7 @@ export function createAddon(env = process.env) {
       } catch {
         return null;
       }
-      return getFile(config, parts, { cacheOnly: true });
+      return getFile({ ...config, ass: false }, parts, { cacheOnly: true });
     };
     if (!Array.isArray(refs) || refs.length !== 2 || !refs.every(isText)) return errorSrt([t(ui, 'failed'), 'bad link']);
     const [primary, secondary] = await Promise.all([
@@ -1152,6 +1168,7 @@ export function createAddon(env = process.env) {
           machine: config.machine,
           hi: config.hi,
           clean: config.clean,
+          ass: config.ass,
           gestdown: config.gestdown,
           anisub: config.anisub,
           dual: config.dual,
@@ -1212,7 +1229,12 @@ export function createAddon(env = process.env) {
         return send(res, 200, await getDualFile(config, parts[1].replace(/\.srt$/, '')), SRT);
       }
       const file = await getFile(config, parts);
-      if (file !== null) return send(res, 200, file, SRT);
+      if (file !== null) {
+        const styled = isAss(file);
+        // Deneysel ayarın denenebilmesi için: dosyanın stiliyle mi yoksa SRT olarak mı verildiği kayda yazılır.
+        if (config.ass) console.log(`[addon] ${parts[0]} dosyası: ${styled ? 'ASS/SSA olarak verildi' : 'SRT olarak verildi'}`);
+        return send(res, 200, file, styled ? ASS : SRT);
+      }
       if (parts[0] === 'message' && parts.length === 3) {
         const messageUi = normalizeUi(parts[1]) || DEFAULT_UI;
         return send(res, 200, errorSrt(t(messageUi, 'needAccount')), SRT);

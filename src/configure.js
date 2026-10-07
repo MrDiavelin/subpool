@@ -156,7 +156,7 @@ const CLEAN_SAMPLE = `
               <div><span class="f" data-i18n="after"></span><span data-i18n="who"></span></div>
             </div>`;
 
-export function configurePage({ baseUrl, selected, ui, auth, sources, max, match, fallback, machine, hi, clean, gestdown, anisub, dual, prefer, maxLanguages, misconfigured }) {
+export function configurePage({ baseUrl, selected, ui, auth, sources, max, match, fallback, machine, hi, clean, ass, gestdown, anisub, dual, prefer, maxLanguages, misconfigured }) {
   const langs = LANGUAGES.map(({ code, stremio, english, tag }) => ({ code, stremio, english, tag }));
   return `<!doctype html>
 <html lang="${ui || DEFAULT_UI}">
@@ -626,7 +626,7 @@ ${misconfigured ? '<p class="warn"><b>Server misconfigured:</b> OS_API_KEY / CON
         </div>
         <div class="group">
           <div class="glabel" data-i18n="gText"></div>
-          <div class="box">${option('clean', toggle('clean'), CLEAN_SAMPLE)}${option('dual', toggle('dual'))}
+          <div class="box">${option('clean', toggle('clean'), CLEAN_SAMPLE)}${option('dual', toggle('dual'))}${option('ass', toggle('ass'))}
           </div>
         </div>
       </section>
@@ -768,6 +768,8 @@ let fallback = ${toJson(!!fallback)};
 let hideMachine = ${toJson(machine === false)};
 let hi = ${toJson(hi || 'show')};
 let clean = ${toJson(!!clean)};
+// ASS/SSA altyazılar SRT'ye çevrilmeden, stiliyle verilir (deneysel).
+let ass = ${toJson(!!ass)};
 // Gestdown anahtar istemeyen bir kaynaktır; şifreli parçada değil, adreste bir ayar olarak durur.
 let gestdown = ${toJson(!!gestdown)};
 // AniSub da anahtar istemez; adreste "as=1" olarak durur. Yalnızca Türkçe altyazı verdiği için ayarı yalnızca site
@@ -829,6 +831,7 @@ if (!auth && !selected.length) {
     if (saved?.machine === false) hideMachine = true;
     if (HI_MODES[saved?.hi]) hi = saved.hi;
     if (saved?.clean === true) clean = true;
+    if (saved?.ass === true) ass = true;
     if (saved?.gestdown === true) gestdown = true;
     if (saved?.anisub === true) anisub = true;
     if (saved?.dual === true) dual = true;
@@ -979,6 +982,7 @@ function renderStatic() {
   $('hi').replaceChildren(...Object.entries(HI_MODES).map(([mode, key]) => new Option(tr(key), mode)));
   $('hi').value = hi;
   $('clean').checked = clean;
+  $('ass').checked = ass;
   const priCodes = Object.keys(PREFER_NAMES).filter((code) => code !== 'as' || anisubShown());
   $('pri').replaceChildren(new Option(tr('priNone'), ''), ...priCodes.map((code) => new Option(PREFER_NAMES[code], code)));
   $('pri').value = priCodes.includes(prefer) ? prefer : '';
@@ -1249,7 +1253,7 @@ function render() {
   const pri = prefer === 'as' && !anisubShown() ? '' : prefer;
   // Varsayılan liste ayarları adrese yazılmaz; eski adresler de aynen çalışır.
   const options = (max ? '&max=' + max : '') + (match ? '' : '&match=0') + (fallback ? '&fb=1' : '') +
-    (hideMachine ? '&mt=0' : '') + (hi !== 'show' ? '&hi=' + hi : '') + (clean ? '&clean=1' : '') +
+    (hideMachine ? '&mt=0' : '') + (hi !== 'show' ? '&hi=' + hi : '') + (clean ? '&clean=1' : '') + (ass ? '&ass=1' : '') +
     (gestdown ? '&gd=1' : '') + (anisubOn() ? '&as=1' : '') + (dual ? '&dual=1' : '') + (pri ? '&pri=' + pri : '');
   const manifestUrl = BASE_URL + '/languages=' + selected.join(',') + '&ui=' + ui + options + (auth ? '&auth=' + auth : '') + '/manifest.json';
   const install = $('install');
@@ -1275,7 +1279,7 @@ function render() {
   // Yükleme adımındaki özet ve yandaki kaynak sayacı.
   const all = sourceList();
   const count = all.filter(([, on]) => on).length;
-  const changed = [!match, fallback, hideMachine, clean, dual, !!max, hi !== 'show', !!pri].filter(Boolean).length;
+  const changed = [!match, fallback, hideMachine, clean, ass, dual, !!max, hi !== 'show', !!pri].filter(Boolean).length;
   const names = selected.map((code) => langName(byCode.get(code))).join(', ');
   $('checks').replaceChildren(...[
     [count > 0, tr('chkSrc', { n: count })],
@@ -1299,7 +1303,7 @@ function render() {
   addonBase = base;
   renderFind();
   renderView();
-  storageSet('saved', JSON.stringify({ auth, sources, selected, max, match, fallback, machine: !hideMachine, hi, clean, gestdown, anisub, dual, prefer }));
+  storageSet('saved', JSON.stringify({ auth, sources, selected, max, match, fallback, machine: !hideMachine, hi, clean, ass, gestdown, anisub, dual, prefer }));
 }
 
 function renderFind() {
@@ -1480,7 +1484,8 @@ async function download(item) {
   findNote = null;
   render();
   try {
-    const res = await fetch(item.url);
+    // Kaydırma SRT üzerinde yapılır ve dosya .srt olarak kaydedilir; bu yüzden dosya her zaman SRT olarak istenir.
+    const res = await fetch(item.url.replace('&ass=1', ''));
     const text = await res.text();
     const warning = text.match(/^1\\r?\\n00:00:00,000 --> 00:00:15,000\\r?\\n([\\s\\S]*?)\\s*$/);
     if (!res.ok || (warning && !/\\n\\s*\\n/.test(warning[1]))) {
@@ -1696,6 +1701,10 @@ $('machine').addEventListener('change', () => {
 $('hi').addEventListener('change', onHi);
 $('clean').addEventListener('change', () => {
   clean = $('clean').checked;
+  render();
+});
+$('ass').addEventListener('change', () => {
+  ass = $('ass').checked;
   render();
 });
 $('gestdown').addEventListener('change', () => {
