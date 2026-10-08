@@ -1,6 +1,7 @@
 import { OpenSubtitlesClient, USER_AGENT } from './opensubtitles.js';
 import { SubdlClient } from './subdl.js';
 import { SubsourceClient } from './subsource.js';
+import { SubsroClient, subsroPick } from './subsro.js';
 import { ALTYAZIDB_LANGUAGES, AltyazidbClient } from './altyazidb.js';
 import { GestdownClient } from './gestdown.js';
 import { officialSubtitles } from './official.js';
@@ -9,8 +10,8 @@ import { ANIME_SITES, kitsuMap, kitsuSearch } from './kitsu.js';
 import { seriesInfo } from './cinemeta.js';
 import { pickSubtitle, rarSelfTest, UnsupportedArchiveError } from './archive.js';
 import { assSample, assToSrt, decodeSubtitle, errorSrt, isAss, mergeSubtitles, releaseSimilarity, stripHearingImpaired, withNotice } from './subtitle.js';
-import { parseRelease, releaseMatch, sameRelease } from './release.js';
-import { fromStremioLang, gestdownCode, isLanguage, languageName, stremioLang, subdlCode, subsourceName } from './languages.js';
+import { forcedRelease, parseRelease, releaseMatch, sameRelease } from './release.js';
+import { fromStremioLang, gestdownCode, isLanguage, languageName, stremioLang, subdlCode, subsourceName, subsroCode } from './languages.js';
 import { configurePage } from './configure.js';
 import { LOGO_PNG, LOGO_SVG } from './logo.js';
 import { FONTS } from './fonts.js';
@@ -18,13 +19,13 @@ import { createSealer, sha256 } from './crypto.js';
 import { MemoryStore, createStore } from './store.js';
 import { DEFAULT_UI, normalizeUi, t } from './i18n.js';
 
-const VERSION = '3.14.5';
+const VERSION = '3.15.0';
 const MAX_LANGUAGES = 10;
 // Kullanıcı isterse her dilde gösterilecek altyazı sayısını sınırlar; varsayılan sınırsızdır.
 const MAX_PER_LANGUAGE = 50;
-const ROUTES = new Set(['manifest.json', 'subtitles', 'sub', 'sd', 'ss', 'adb', 'gd', 'dual', 'message', 'configure', 'api', 'fonts']);
+const ROUTES = new Set(['manifest.json', 'subtitles', 'sub', 'sd', 'ss', 'sro', 'adb', 'gd', 'dual', 'message', 'configure', 'api', 'fonts']);
 // Altyazı dosyası sunan yollar.
-const FILE_ROUTES = ['sub', 'sd', 'ss', 'adb', 'gd', 'dual'];
+const FILE_ROUTES = ['sub', 'sd', 'ss', 'sro', 'adb', 'gd', 'dual'];
 
 // stremio-addons.net'te eklentinin sahipliğini doğrulayan imza (gizli değildir; sitenin "Claim addon" penceresinden alınır).
 const STREMIO_ADDONS_SIGNATURE = 'eyJhbGciOiJkaXIiLCJlbmMiOiJBMTI4Q0JDLUhTMjU2In0..ol7BX2P9CbGPXdlfMscb9g.A8W2tVQPhKRsZ6J1cPK27PjeuR0cIjRgonPxHspaHUWmZQrQkq8KszM2iYtJS_2JfhzX1SOD-z7dGsfN5BX0RIv2khsB4sEOKvOZNhHrjDdyhQgbp4EG7uhbg2M2syVA.Cxx4hkhJSC88JRE506mSvA';
@@ -48,14 +49,24 @@ const TEST_SERIES = { tvdb: 81189, season: 1, episode: 1 };
 // Çift dilli altyazı açıkken listenin başına en fazla bu kadar birleşik altyazı eklenir.
 const DUAL_MAX = 3;
 // Liste kısaltılırken her siteden en az bir altyazı kalsın diye kaynakların ait olduğu site.
-const SITE = { official: 'os', pool: 'os', quota: 'os', subdl: 'subdl', subsource: 'subsource', altyazidb: 'altyazidb', gestdown: 'gestdown', anisub: 'anisub' };
+const SITE = { official: 'os', pool: 'os', quota: 'os', subdl: 'subdl', subsource: 'subsource', subsro: 'subsro', altyazidb: 'altyazidb', gestdown: 'gestdown', anisub: 'anisub' };
 // Aynı hesapla bu sürede en fazla bu kadar hak harcanır.
 const QUOTA_BURST = { max: 1, windowSec: 5 };
 // Listede gösterilen kalan indirme hakkı bu kadar saniye hatırlanır (indirme yapılınca hemen güncellenir).
 const QUOTA_INFO_TTL = 5 * 60;
 const QUOTA_INFO_DEADLINE_MS = 3000;
 // Adresteki "pri" değeri: listede öne alınacak kaynak.
-const PREFER = { os: 'os', sd: 'subdl', ss: 'subsource', adb: 'altyazidb', gd: 'gestdown', as: 'anisub' };
+const PREFER = { os: 'os', sd: 'subdl', ss: 'subsource', sro: 'subsro', adb: 'altyazidb', gd: 'gestdown', as: 'anisub' };
+
+const VIDEO_HINT = /^[A-Za-z0-9][A-Za-z0-9.-]{0,99}$/;
+
+/** Videonun dosya adından adrese konabilecek kısa bir ipucu çıkarır: yalnızca harf, rakam, nokta ve tire; en çok 100 karakter. */
+function videoHint(name) {
+  const text = String(name || '').split(/[\\/]/).pop().replace(/\.(mkv|mp4|avi|mov|wmv|m4v|ts|webm)$/i, '')
+    .normalize('NFKD').replace(/[^A-Za-z0-9-]+/g, '.').replace(/^[.-]+|[.-]+$/g, '');
+  // Sürümü belirleyen parçalar (kaynak, grup) adın sonundadır; uzun adlarda baş taraf atılır.
+  return text.length > 100 ? text.slice(-100).replace(/^[^.]*\./, '').replace(/^[.-]+/, '') : text;
+}
 // AniSub'a giden isteklerde eklentinin kim olduğu ve nereden ulaşılacağı yazar.
 const ANISUB_AGENT = `SubPool/${VERSION} (+https://github.com/MrDiavelin/subpool; https://x.com/Diavelin)`;
 
@@ -85,6 +96,11 @@ function parseLanguages(value) {
 }
 
 const isText = (value) => typeof value === 'string' && value.length > 0 && value.length < 500;
+/**
+ * SubDL ve SubSource, yalnızca yabancı konuşmaları içeren altyazıları ayrıca bildirmez; sürüm adından anlaşılır.
+ * Altyazının bütün sürüm adları bunu söylüyorsa işaretlenir.
+ */
+const forcedByName = (r) => ((r.releases?.length ? r.releases : [r.release]).every(forcedRelease) ? 1 : 0);
 const maskKey = (key) => (key.length > 6 ? `…${key.slice(-4)}` : '…');
 const b64 = (value) => Buffer.from(JSON.stringify(value)).toString('base64url');
 const unb64 = (value) => {
@@ -107,7 +123,7 @@ export function createAddon(env = process.env) {
   const sourceDeadline = Number(env.SOURCE_DEADLINE_MS) || SOURCE_DEADLINE_MS;
   console.log(`[addon] Önbellek: ${store.persistent ? 'Upstash Redis' : 'sadece bellek'}`);
 
-  /** Şifreli "auth" parçasındaki kaynakları okur: OpenSubtitles hesabı (u/p), SubDL (sd), SubSource (ss) ve AltyazıDB (ad) anahtarları. */
+  /** Şifreli "auth" parçasındaki kaynakları okur: OpenSubtitles hesabı (u/p), SubDL (sd), SubSource (ss), Subs.ro (sr) ve AltyazıDB (ad) anahtarları. */
   function openSecrets(auth) {
     const data = auth && sealer ? sealer.open(auth) : null;
     if (!data || typeof data !== 'object') return {};
@@ -118,6 +134,7 @@ export function createAddon(env = process.env) {
     }
     if (isText(data.sd)) secrets.sd = data.sd;
     if (isText(data.ss)) secrets.ss = data.ss;
+    if (isText(data.sr)) secrets.sr = data.sr;
     if (isText(data.ad)) secrets.ad = data.ad;
     return secrets;
   }
@@ -126,9 +143,10 @@ export function createAddon(env = process.env) {
    * Adresteki ayar bölümünü okur: "languages=tr,en&ui=tr&auth=<şifreli kaynaklar>".
    * İsteğe bağlı: "max=10" (dil başına en fazla altyazı), "match=0" (akıllı sürüm eşleştirme kapalı),
    * "fb=1" (sonraki diller yalnızca yedek), "mt=0" (makine çevirileri gizli), "hi=last|hide" (işitme engelli
-   * altyazılar sonda ya da gizli), "clean=1" (ses açıklamaları temizlenir), "gd=1" (Gestdown kaynağı açık; anahtar
+   * altyazılar sonda ya da gizli), "fo=first|hide" (yalnızca yabancı konuşmaları içeren altyazılar önde ya da gizli;
+   * yazılmazsa sonda), "clean=1" (ses açıklamaları temizlenir), "gd=1" (Gestdown kaynağı açık; anahtar
    * gerektirmediği için şifreli parçada yer almaz), "as=1" (AniSub kaynağı açık; o da anahtar istemez),
-   * "dual=1" (ilk iki dil tek altyazıda birleştirilir), "pri=os|sd|ss|adb|gd|as" (bu kaynağın ücretsiz
+   * "dual=1" (ilk iki dil tek altyazıda birleştirilir), "pri=os|sd|ss|sro|adb|gd|as" (bu kaynağın ücretsiz
    * altyazıları her dilde öne alınır), "ass=1" (ASS/SSA biçimindeki altyazılar SRT'ye çevrilmeden verilir).
    * Şifre çözülemezse kullanıcının anahtar isteyen hiçbir kaynağı yok sayılır.
    */
@@ -137,6 +155,7 @@ export function createAddon(env = process.env) {
     const secrets = openSecrets(params.get('auth'));
     const max = Number(params.get('max'));
     const hi = params.get('hi');
+    const forced = params.get('fo');
     const config = {
       languages: parseLanguages(params.get('languages')),
       ui: normalizeUi(params.get('ui')),
@@ -145,6 +164,7 @@ export function createAddon(env = process.env) {
       fallback: params.get('fb') === '1',
       machine: params.get('mt') !== '0',
       hi: hi === 'last' || hi === 'hide' ? hi : 'show',
+      forced: forced === 'first' || forced === 'hide' ? forced : 'last',
       clean: params.get('clean') === '1',
       ass: params.get('ass') === '1' || params.get('ass') === 'test',
       // Deneme: listenin başına, oynatıcının ASS stilini gösterip göstermediğini sınayan iki örnek altyazı eklenir.
@@ -158,9 +178,10 @@ export function createAddon(env = process.env) {
       os: secrets.u ? { username: secrets.u, password: secrets.p } : null,
       subdl: secrets.sd || null,
       subsource: secrets.ss || null,
+      subsro: secrets.sr || null,
       altyazidb: secrets.ad || null,
     };
-    const hasKey = !!(config.os || config.subdl || config.subsource || config.altyazidb);
+    const hasKey = !!(config.os || config.subdl || config.subsource || config.subsro || config.altyazidb);
     config.hasSource = hasKey || config.gestdown || config.anisub;
     config.auth = hasKey ? params.get('auth') : null;
     return config;
@@ -176,6 +197,7 @@ export function createAddon(env = process.env) {
       os: config.os?.username || null,
       subdl: config.subdl ? maskKey(config.subdl) : null,
       subsource: config.subsource ? maskKey(config.subsource) : null,
+      subsro: config.subsro ? maskKey(config.subsro) : null,
       altyazidb: config.altyazidb ? maskKey(config.altyazidb) : null,
     };
   }
@@ -183,7 +205,7 @@ export function createAddon(env = process.env) {
   function buildManifest(config, baseUrl) {
     const ui = config.ui || DEFAULT_UI;
     const langs = config.languages.map((code) => languageName(code, ui)).join(', ') || '—';
-    const sources = [config.os && 'OpenSubtitles', config.subdl && 'SubDL', config.subsource && 'SubSource', config.altyazidb && 'AltyazıDB', config.gestdown && 'Gestdown', config.anisub && 'AniSub']
+    const sources = [config.os && 'OpenSubtitles', config.subdl && 'SubDL', config.subsource && 'SubSource', config.subsro && 'Subs.ro', config.altyazidb && 'AltyazıDB', config.gestdown && 'Gestdown', config.anisub && 'AniSub']
       .filter(Boolean).join(', ') || '—';
     // Deneme adresleri ayrı bir eklenti olarak kurulur: kimliği ve adı farklıdır, asıl eklentiyle karışmaz;
     // hesap bağlanmadan kurulabilir ve Stremio'da "Ayarla" düğmesi çıkmaz.
@@ -370,7 +392,7 @@ export function createAddon(env = process.env) {
     return items;
   }
 
-  // ---------- SubDL, SubSource ve AltyazıDB (kullanıcının kendi anahtarı) ----------
+  // ---------- SubDL, SubSource, Subs.ro ve AltyazıDB (kullanıcının kendi anahtarı) ----------
 
   async function subdlItems(config, ctx) {
     const codes = new Map();
@@ -403,7 +425,7 @@ export function createAddon(env = process.env) {
         const token = b64(r.direct || r.season === undefined
           ? { p: r.path }
           : { p: r.path, s: Number(season), e: Number(episode), a: numbering?.absolute, n: numbering?.seasonLength || undefined });
-        return { key: `sd-${r.path}`, source: 'subdl', lang, release: r.release, releases: r.releases, hi: r.hi, downloads: 0, url: `${prefix}/${encodeURIComponent(lang)}/${token}.srt` };
+        return { key: `sd-${r.path}`, source: 'subdl', lang, release: r.release, releases: r.releases, hi: r.hi, forced: forcedByName(r), downloads: 0, url: `${prefix}/${encodeURIComponent(lang)}/${token}.srt` };
       });
   }
 
@@ -435,8 +457,33 @@ export function createAddon(env = process.env) {
       .map((r) => {
         const lang = names.get(r.lang);
         const file = `${r.id}-${season ?? 0}-${episode ?? 0}${numbering ? `-${numbering.absolute}-${numbering.seasonLength}` : ''}`;
-        return { key: `ss-${r.id}`, source: 'subsource', lang, release: r.release, releases: r.releases, hi: r.hi, downloads: 0, url: `${prefix}/${encodeURIComponent(lang)}/${file}.srt` };
+        return { key: `ss-${r.id}`, source: 'subsource', lang, release: r.release, releases: r.releases, hi: r.hi, forced: forcedByName(r), downloads: 0, url: `${prefix}/${encodeURIComponent(lang)}/${file}.srt` };
       });
+  }
+
+  async function subsroItems(config, ctx) {
+    const codes = new Map();
+    for (const lang of ctx.languages) {
+      const code = subsroCode(lang);
+      if (code && !codes.has(code)) codes.set(code, lang);
+    }
+    if (!codes.size) return [];
+    const { imdbId, season, episode } = ctx;
+    // Site yapımın bütün altyazılarını tek aramada verir; dil ve sezon burada seçilir. Böylece bir dizinin
+    // bütün bölümleri ve bütün diller için anahtarın günlük sorgu sınırından tek sorgu harcanır.
+    const all = await cached(`sro:${imdbId}`, SEARCH_TTL, () => new SubsroClient({ apiKey: config.subsro, userAgent: USER_AGENT }).list(imdbId));
+    const numbering = await ctx.numbering;
+
+    const prefix = `${ctx.baseUrl}/${configSegment(config)}/sro`;
+    // Sitedeki arşivler çoğu kez aynı altyazının birkaç sürümünü (BluRay, WEB-DL, DVD…) birlikte taşır. Hangisinin
+    // verileceği indirme sırasında seçildiği için videonun dosya adı adrese kısaltılarak eklenir.
+    const hint = config.match ? videoHint(ctx.filename) : '';
+    return subsroPick(all, { season, episode, languages: [...codes.keys()] }).map((r) => {
+      const lang = codes.get(r.lang);
+      // Sezon paketlerinde istenen bölüm indirme sırasında ayıklanır; animelerde baştan sayılan numara da taşınır.
+      const file = `${r.id}-${season ?? 0}-${episode ?? 0}${numbering ? `-${numbering.absolute}-${numbering.seasonLength}` : ''}`;
+      return { key: `sro-${r.id}`, source: 'subsro', lang, release: r.release, releases: r.releases, hi: 0, forced: 0, downloads: 0, url: `${prefix}/${encodeURIComponent(lang)}/${hint ? `${hint}/` : ''}${file}.srt` };
+    });
   }
 
   async function altyazidbItems(config, ctx) {
@@ -453,7 +500,7 @@ export function createAddon(env = process.env) {
       .map((r) => {
         // Sezon paketlerinde istenen bölüm indirme sırasında ayıklanır.
         const file = `${r.id}-${r.pack ? season : 0}-${r.pack ? episode : 0}`;
-        return { key: `adb-${r.id}`, source: 'altyazidb', lang: r.lang, release: r.release, releases: r.releases, hi: r.hi, machine: r.machine, downloads: r.downloads, url: `${prefix}/${encodeURIComponent(r.lang)}/${file}.srt` };
+        return { key: `adb-${r.id}`, source: 'altyazidb', lang: r.lang, release: r.release, releases: r.releases, hi: r.hi, forced: r.forced, machine: r.machine, downloads: r.downloads, url: `${prefix}/${encodeURIComponent(r.lang)}/${file}.srt` };
       });
   }
 
@@ -608,6 +655,7 @@ export function createAddon(env = process.env) {
       episode,
       moviehash: /^[0-9a-f]{16}$/i.test(extra.videoHash || '') ? extra.videoHash.toLowerCase() : undefined,
       languages: config.languages,
+      filename: extra.filename,
       baseUrl,
     };
     // Kalan hak, kaynaklar aranırken paralel sorulur; gecikirse ya da alınamazsa liste onsuz gösterilir.
@@ -625,6 +673,7 @@ export function createAddon(env = process.env) {
       ['OpenSubtitles', config.os && openSubtitlesItems],
       ['SubDL', config.subdl && subdlItems],
       ['SubSource', config.subsource && subsourceItems],
+      ['Subs.ro', config.subsro && subsroItems],
       ['AltyazıDB', config.altyazidb && altyazidbItems],
       ['Gestdown', config.gestdown && gestdownItems],
       ['AniSub', config.anisub && anisubItems],
@@ -671,15 +720,18 @@ export function createAddon(env = process.env) {
       items.push({ ...r, release, score, same });
     }
 
-    // Liste filtreleri: makine çevirileri ve işitme engelli (HI) altyazılar isteğe bağlı olarak gizlenir.
-    const visible = items.filter((r) => (config.machine || !r.machine) && (config.hi !== 'hide' || !r.hi));
+    // Liste filtreleri: makine çevirileri, işitme engelli (HI) altyazılar ve yalnızca yabancı konuşmaları içerenler
+    // isteğe bağlı olarak gizlenir.
+    const visible = items.filter((r) => (config.machine || !r.machine) && (config.hi !== 'hide' || !r.hi) && (config.forced !== 'hide' || !r.forced));
 
     // Sıra: önce dil, sonra ücretsiz olanlar (hak harcayanlar hep altta), yalnızca yabancı konuşmaları içerenler
-    // kendi grubunun sonunda, istenirse HI olanlar sonda, sonra kullanıcının öne aldığı kaynak, en son videoya uygunluk.
+    // kendi grubunun sonunda (istenirse başında), istenirse HI olanlar sonda, sonra kullanıcının öne aldığı kaynak,
+    // en son videoya uygunluk.
     const languages = config.languages;
+    const forcedFirst = config.forced === 'first';
     const order = (r) => {
       const index = languages.indexOf(r.lang);
-      return (index === -1 ? 99 : index) * 16 + (r.source === 'quota' ? 8 : 0) + (r.forced ? 4 : 0) +
+      return (index === -1 ? 99 : index) * 16 + (r.source === 'quota' ? 8 : 0) + ((forcedFirst ? !r.forced : r.forced) ? 4 : 0) +
         (config.hi === 'last' && r.hi ? 2 : 0) + (config.prefer && SITE[r.source] !== config.prefer ? 1 : 0);
     };
     visible.sort((x, y) => order(x) - order(y) || y.score - x.score);
@@ -695,6 +747,7 @@ export function createAddon(env = process.env) {
       quota: t(ui, 'tagQuota') + (remaining != null ? ` · ${t(ui, 'quotaLeft', { n: remaining })}` : ''),
       subdl: t(ui, 'tagSubdl'),
       subsource: t(ui, 'tagSubsource'),
+      subsro: t(ui, 'tagSubsro'),
       altyazidb: t(ui, 'tagAltyazidb'),
       gestdown: t(ui, 'tagGestdown'),
       anisub: t(ui, 'tagAnisub'),
@@ -892,6 +945,29 @@ export function createAddon(env = process.env) {
     }, where);
   }
 
+  function getSubsroFile(config, lang, file, hint = '') {
+    const ui = config.ui || DEFAULT_UI;
+    if (!config.subsro) return errorSrt(t(ui, 'needAccount'));
+    const [id, season, episode, absolute, seasonLength] = file.split('-').map(Number);
+    // Site altyazının hangi bölüme ait olduğunu söylemez; arşivdeki tek dosya açıkça başka bir bölümse verilmez.
+    const where = { ...(episode ? { season, episode, absolute, seasonLength, strict: true } : {}), video: hint };
+    const subsro = new SubsroClient({ apiKey: config.subsro, userAgent: USER_AGENT });
+    // Arşivden hangi dosyanın seçildiği videoya bağlıdır; önbellek de videonun adına göre ayrılır.
+    const variant = hint ? `:${sha256(hint.toLowerCase()).slice(0, 16)}` : '';
+    return archiveFile(config, lang, `sub:sro:${id}:${season}:${episode}${absolute ? `:${absolute}:${seasonLength}` : ''}${variant}`, async () => {
+      try {
+        return await subsro.download(id);
+      } catch (err) {
+        if ([401, 403].includes(err.status)) throw Object.assign(new Error('key'), { keyRejected: 'Subs.ro' });
+        throw err;
+      }
+    }, where).catch((err) => {
+      // Anahtarın günlük sorgu sınırı dolmuş: genel hata yerine ne olduğu söylenir.
+      if (err.status === 429) return errorSrt(t(ui, 'subsroLimit'));
+      throw err;
+    });
+  }
+
   async function getAltyazidbFile(config, lang, file) {
     const ui = config.ui || DEFAULT_UI;
     if (!config.altyazidb) return errorSrt(t(ui, 'needAccount'));
@@ -936,6 +1012,10 @@ export function createAddon(env = process.env) {
     }
     if (parts[0] === 'sd' && parts.length === 3 && /^[\w-]+\.srt$/.test(name)) return getSubdlFile(config, parts[1], id);
     if (parts[0] === 'ss' && parts.length === 3 && /^\d+-\d+-\d+(-\d+-\d+)?\.srt$/.test(name)) return getSubsourceFile(config, parts[1], id);
+    // sro/{dil}/{videonun adı}/{dosya}.srt (videonun adı bilinmiyorsa: sro/{dil}/{dosya}.srt)
+    if (parts[0] === 'sro' && (parts.length === 3 || (parts.length === 4 && VIDEO_HINT.test(parts[2]))) && /^\d+-\d+-\d+(-\d+-\d+)?\.srt$/.test(name)) {
+      return getSubsroFile(config, parts[1], id, parts.length === 4 ? parts[2] : '');
+    }
     if (parts[0] === 'adb' && parts.length === 3 && /^\d+-\d+-\d+\.srt$/.test(name)) return getAltyazidbFile(config, parts[1], id);
     if (parts[0] === 'gd' && parts.length === 3 && /^[0-9a-f-]{36}\.srt$/.test(name)) return getGestdownFile(config, parts[1], id);
     return null;
@@ -1006,6 +1086,8 @@ export function createAddon(env = process.env) {
       delete secrets.sd;
     } else if (body?.remove === 'subsource') {
       delete secrets.ss;
+    } else if (body?.remove === 'subsro') {
+      delete secrets.sr;
     } else if (body?.remove === 'altyazidb') {
       delete secrets.ad;
     }
@@ -1035,7 +1117,7 @@ export function createAddon(env = process.env) {
       allowedDownloads = session.allowedDownloads ?? null;
     }
 
-    for (const [field, name, Client] of [['subdl', 'sd', SubdlClient], ['subsource', 'ss', SubsourceClient], ['altyazidb', 'ad', AltyazidbClient]]) {
+    for (const [field, name, Client] of [['subdl', 'sd', SubdlClient], ['subsource', 'ss', SubsourceClient], ['subsro', 'sr', SubsroClient], ['altyazidb', 'ad', AltyazidbClient]]) {
       if (body?.[field] === undefined) continue;
       const apiKey = String(body[field] || '').trim();
       if (!isText(apiKey) || !(await new Client({ apiKey, userAgent: USER_AGENT }).verify())) {
@@ -1107,6 +1189,10 @@ export function createAddon(env = process.env) {
         new SubsourceClient({ apiKey: config.subsource, userAgent: USER_AGENT }),
         [...new Set(languages.map(subsourceName).filter(Boolean))],
       )),
+      subsro: config.subsro && (() => keySearch(
+        new SubsroClient({ apiKey: config.subsro, userAgent: USER_AGENT }),
+        [...new Set(languages.map(subsroCode).filter(Boolean))],
+      )),
       altyazidb: config.altyazidb && (() => keySearch(
         new AltyazidbClient({ apiKey: config.altyazidb, userAgent: USER_AGENT }),
         languages.filter((lang) => ALTYAZIDB_LANGUAGES.includes(lang)),
@@ -1174,6 +1260,7 @@ export function createAddon(env = process.env) {
           fallback: config.fallback,
           machine: config.machine,
           hi: config.hi,
+          forced: config.forced,
           clean: config.clean,
           ass: config.ass,
           gestdown: config.gestdown,

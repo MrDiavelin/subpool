@@ -1,7 +1,7 @@
 import { inflateRawSync } from 'node:zlib';
 import unrar from 'node-unrar-js';
 import { UNRAR_WASM } from './unrar-wasm.js';
-import { episodeOf } from './release.js';
+import { episodeOf, parseRelease, releaseMatch } from './release.js';
 
 const SUBTITLE_EXT = /\.(srt|vtt|ass|ssa)$/i;
 const NESTED_EXT = /\.(zip|rar)$/i;
@@ -28,8 +28,12 @@ export async function rarSelfTest() {
  * Arşivin içindeki arşiv de (ör. ZIP içinde RAR) bir kat açılır.
  * Sezon paketlerinde dosya adındaki bölüm numarasına göre seçim yapar. Bulamazsa null döner.
  * Animelerde bölümün baştan sayılan numarası (`absolute`) ve sezonun bölüm sayısı (`seasonLength`) da verilebilir.
+ * `strict` açıkken arşivdeki tek dosyanın adı açıkça başka bir bölümü gösteriyorsa (S01E05) o da verilmez; hangi
+ * bölüme ait olduğunu arama sırasında söylemeyen kaynaklar için.
+ * `video` (videonun dosya adı) verilirse, aynı altyazının birkaç sürümünü (BluRay, WEB-DL, DVD…) taşıyan arşivlerde
+ * videonun sürümüne en çok uyan dosya seçilir.
  */
-export async function pickSubtitle(buffer, { season, episode, absolute, seasonLength } = {}) {
+export async function pickSubtitle(buffer, { season, episode, absolute, seasonLength, strict = false, video = '' } = {}) {
   const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
   if (is7z(bytes)) throw new UnsupportedArchiveError('7z');
   if (!isZip(bytes) && !isRar(bytes)) return bytes;
@@ -56,9 +60,15 @@ export async function pickSubtitle(buffer, { season, episode, absolute, seasonLe
   if (episode !== undefined && episode !== null && files.length > 1) {
     candidates = episodeFiles(files, { season, episode, absolute, seasonLength });
     if (!candidates.length) return null;
+  } else if (strict && episode !== undefined && episode !== null && files.length === 1) {
+    const found = episodeOf(files[0].name);
+    if (found.season !== null && found.episode !== null && !episodeFiles(files, { season, episode, absolute, seasonLength }).length) return null;
   }
-  // Birden fazla uygun dosya varsa önce .srt, sonra en büyüğü seçilir (genelde tam altyazı odur).
-  candidates.sort((a, b) => formatRank(a.name) - formatRank(b.name) || b.size - a.size);
+  // Birden fazla uygun dosya varsa önce bütün film ("CD1/CD2" diye bölünmemiş olan), sonra videonun sürümüne en çok
+  // uyan, sonra .srt, sonra en büyüğü seçilir (genelde tam altyazı odur).
+  const target = video && candidates.length > 1 ? parseRelease(video) : null;
+  const fit = new Map(candidates.map((f) => [f, target ? releaseMatch(target, parseRelease(f.name)) : 0]));
+  candidates.sort((a, b) => isPart(a.name) - isPart(b.name) || fit.get(b) - fit.get(a) || formatRank(a.name) - formatRank(b.name) || b.size - a.size);
   return candidates[0].read();
 }
 
@@ -68,6 +78,8 @@ const is7z = (b) => b[0] === 0x37 && b[1] === 0x7a && b[2] === 0xbc && b[3] === 
 const isJunk = (name) => /(^|\/)__MACOSX\//.test(name);
 const isSubtitle = (f) => SUBTITLE_EXT.test(f.name) && !isJunk(f.name) && f.size <= MAX_SUBTITLE;
 const formatRank = (name) => (/\.srt$/i.test(name) ? 0 : /\.vtt$/i.test(name) ? 1 : 2);
+// İki diske bölünmüş eski sürümlerin parçası ("…CD1…"): tek başına filmin yarısıdır.
+const isPart = (name) => Number(/(^|[^a-z0-9])cd[ ._-]?\d(?!\d)/i.test(name));
 
 /** Arşivdeki dosyalar: [{ name, size, read() }] */
 function readArchive(bytes) {

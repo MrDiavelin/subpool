@@ -51,7 +51,7 @@ export class AltyazidbClient {
     }
   }
 
-  /** Sonuç: [{ id, lang, release, releases, hi, machine, downloads, pack }] */
+  /** Sonuç: [{ id, lang, release, releases, hi, forced, machine, downloads, pack }] */
   async search({ imdbId, season, episode, languages }) {
     const isEpisode = season !== undefined && episode !== undefined;
     const lists = await Promise.all(languages.map((lang) =>
@@ -72,8 +72,6 @@ export class AltyazidbClient {
     const results = [];
     for (const item of lists.flat()) {
       if (!item?.id || !/^\d+$/.test(String(item.id))) continue;
-      // Forced altyazılar yalnızca yabancı dildeki bölümleri çevirir; ana altyazı olarak kullanılamaz.
-      if (Number(item.forced)) continue;
       const pack = !!Number(item.is_package) || /paket/i.test(String(item.episode ?? ''));
       if (isEpisode) {
         if (item.season != null && Number(item.season) !== Number(season)) continue;
@@ -87,6 +85,8 @@ export class AltyazidbClient {
         release: releases[0] || '',
         releases,
         hi: Number(item.hearing_impaired) ? 1 : 0,
+        // Yalnızca yabancı dildeki konuşmaları içeren altyazı: filmin tamamını çevirmez.
+        forced: Number(item.forced) ? 1 : 0,
         machine: Number(item.ai_ceviri) ? 1 : 0,
         downloads: Number(item.downloads) || 0,
         pack,

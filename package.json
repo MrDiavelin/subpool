@@ -1,12 +1,14 @@
 {
   "name": "subpool-diavelin",
-  "version": "3.8.0",
+  "version": "3.15.0",
   "private": true,
-  "description": "SubPool by Diavelin: OpenSubtitles, SubDL ve SubSource altyazılarını tek listede toplayan Stremio eklentisi",
+  "description": "SubPool by Diavelin: OpenSubtitles, SubDL, SubSource, Subs.ro, AltyazıDB, Gestdown ve AniSub altyazılarını tek listede toplayan Stremio eklentisi",
   "type": "module",
   "main": "server.js",
   "scripts": {
-    "start": "node --env-file-if-exists=.env server.js"
+    "start": "node --env-file-if-exists=.env server.js",
+    "test": "node test/run.mjs",
+    "scan": "node test/secretscan.mjs"
   },
   "engines": {
     "node": ">=22"

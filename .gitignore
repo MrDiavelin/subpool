@@ -11,3 +11,4 @@ tanitim/
 
 # Tasarım paketleri depoya girmez
 *.zip
+!test/fixtures/*.zip

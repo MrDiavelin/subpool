@@ -7,7 +7,7 @@ const toJson = (value) => JSON.stringify(value).replace(/</g, '\\u003c');
 // Ayar sayfasında kullanılmayan (sadece eklentinin içinde gösterilen) metinler sayfaya gönderilmez.
 const SERVER_ONLY = new Set([
   'manifestDesc', 'needAccountLabel', 'needAccount', 'loginFailed', 'quota', 'quotaReset', 'quotaHint', 'burst',
-  'archiveUnsupported', 'notInPack', 'keyRejected', 'failed', 'dualMissing', 'fansubBy', 'matchFile', 'matchRelease', 'forced',
+  'archiveUnsupported', 'notInPack', 'subsroLimit', 'keyRejected', 'failed', 'dualMissing', 'fansubBy', 'matchFile', 'matchRelease',
 ]);
 const PAGE_STRINGS = Object.fromEntries(
   Object.entries(STRINGS).map(([ui, strings]) => [
@@ -53,6 +53,7 @@ const DIALOG = {
   zh: ['你在这里做什么？', '谁在那儿？', '我只是想聊聊。', '我明天早上就走。'],
   ja: ['ここで何してるの？', '誰かいるのか？', '少し話したかっただけ。', '明日の朝に発つよ。'],
   ko: ['여기서 뭐 해?', '거기 누구야?', '그냥 얘기하고 싶었어.', '내일 아침에 떠나.'],
+  ro: ['Ce cauți aici?', 'Cine-i acolo?', 'Voiam doar să vorbim.', 'Plec mâine dimineață.'],
   nl: ['Wat doe jij hier?', 'Wie is daar?', 'Ik wilde alleen praten.', 'Ik vertrek morgenochtend.'],
   pl: ['Co tu robisz?', 'Kto tam?', 'Chciałem tylko porozmawiać.', 'Wyjeżdżam jutro rano.'],
 };
@@ -66,9 +67,11 @@ const SAMPLE = {
     subdl: 'Shawshank.Redemption.1994.1080p.BluRay.x264-AMIABLE',
     subdlHi: 'Shawshank.Redemption.1994.BDRip.XviD',
     subsource: 'The.Shawshank.Redemption.1994.2160p.UHD.BluRay',
+    subsro: 'The Shawshank Redemption 1994 BluRay',
     altyazidb: 'Esaretin.Bedeli.1994.1080p.BluRay',
     quota: 'Shawshank.Redemption.1994.1080p.WEB-DL.DD5.1',
     machine: 'Shawshank.Redemption.1994.720p (MT)',
+    forced: 'The.Shawshank.Redemption.1994.1080p.BluRay.Forced',
   },
   series: {
     title: 'Breaking Bad S01E01',
@@ -77,10 +80,12 @@ const SAMPLE = {
     subdl: 'Breaking.Bad.S01E01.1080p.BluRay.x265',
     subdlHi: 'Breaking.Bad.S01E01.BDRip.XviD',
     subsource: 'Breaking.Bad.S01E01.2160p.WEB-DL',
+    subsro: 'Breaking Bad - Sezonul 1 BluRay',
     altyazidb: 'Breaking.Bad.S01E01.1080p.BluRay',
     gestdown: 'Breaking.Bad.S01E01.720p.HDTV.x264',
     quota: 'Breaking.Bad.S01E01.1080p.WEB-DL.DD5.1',
     machine: 'Breaking.Bad.S01E01.720p (MT)',
+    forced: 'Breaking.Bad.S01E01.1080p.BluRay.Forced',
   },
 };
 
@@ -156,7 +161,7 @@ const CLEAN_SAMPLE = `
               <div><span class="f" data-i18n="after"></span><span data-i18n="who"></span></div>
             </div>`;
 
-export function configurePage({ baseUrl, selected, ui, auth, sources, max, match, fallback, machine, hi, clean, ass, gestdown, anisub, dual, prefer, maxLanguages, misconfigured }) {
+export function configurePage({ baseUrl, selected, ui, auth, sources, max, match, fallback, machine, hi, forced, clean, ass, gestdown, anisub, dual, prefer, maxLanguages, misconfigured }) {
   const langs = LANGUAGES.map(({ code, stremio, english, tag }) => ({ code, stremio, english, tag }));
   return `<!doctype html>
 <html lang="${ui || DEFAULT_UI}">
@@ -588,7 +593,7 @@ ${misconfigured ? '<p class="warn"><b>Server misconfigured:</b> OS_API_KEY / CON
               </div>
               <p class="status" id="osMsg" role="status"></p>
             </div>
-          </div>${keyPanel('subdl', 'SubDL', 'https://subdl.com/panel/api')}${keyPanel('subsource', 'SubSource', 'https://subsource.net/dashboard/profile')}${keyPanel('altyazidb', 'AltyazıDB', 'https://altyazidb.com/')}
+          </div>${keyPanel('subdl', 'SubDL', 'https://subdl.com/panel/api')}${keyPanel('subsource', 'SubSource', 'https://subsource.net/dashboard/profile')}${keyPanel('subsro', 'Subs.ro', 'https://subs.ro/api')}${keyPanel('altyazidb', 'AltyazıDB', 'https://altyazidb.com/')}
         </div>
 
         <div class="group">
@@ -621,7 +626,7 @@ ${misconfigured ? '<p class="warn"><b>Server misconfigured:</b> OS_API_KEY / CON
         </div>
         <div class="group">
           <div class="glabel" data-i18n="gFilter"></div>
-          <div class="box">${option('machine', toggle('machine'))}${option('hi', choice('hi'))}
+          <div class="box">${option('machine', toggle('machine'))}${option('hi', choice('hi'))}${option('forced', choice('forced'))}
           </div>
         </div>
         <div class="group">
@@ -683,6 +688,7 @@ ${misconfigured ? '<p class="warn"><b>Server misconfigured:</b> OS_API_KEY / CON
           <div><dt class="free" data-i18n="tagPool"></dt><dd data-i18n="howPool"></dd></div>
           <div><dt class="cost" data-i18n="tagQuota"></dt><dd data-i18n="howQuota"></dd></div>
           <div><dt class="free"><span data-i18n="tagSubdl"></span> / <span data-i18n="tagSubsource"></span></dt><dd data-i18n="howOther"></dd></div>
+          <div id="subsroLegend"><dt class="free" data-i18n="tagSubsro"></dt><dd data-i18n="howSubsro"></dd></div>
           <div><dt class="free" data-i18n="tagGestdown"></dt><dd data-i18n="howGestdown"></dd></div>
           <div id="anisubLegend"><dt class="free" data-i18n="tagAnisub"></dt><dd data-i18n="howAnisub"></dd></div>
           <div><dt class="free" data-i18n="tagDual"></dt><dd data-i18n="howDual"></dd></div>
@@ -767,6 +773,7 @@ let match = ${toJson(match)};
 let fallback = ${toJson(!!fallback)};
 let hideMachine = ${toJson(machine === false)};
 let hi = ${toJson(hi || 'show')};
+let forced = ${toJson(forced || 'last')};
 let clean = ${toJson(!!clean)};
 // ASS/SSA altyazılar SRT'ye çevrilmeden, stiliyle verilir (deneysel).
 let ass = ${toJson(!!ass)};
@@ -780,11 +787,14 @@ const anisubOn = () => anisub && anisubShown();
 let dual = ${toJson(!!dual)};
 // Listede öne alınacak kaynak ("pri"); boşsa hiçbiri.
 let prefer = ${toJson(prefer || '')};
-const PREFER_NAMES = { os: 'OpenSubtitles', sd: 'SubDL', ss: 'SubSource', adb: 'AltyazıDB', gd: 'Gestdown', as: 'AniSub' };
+const PREFER_NAMES = { os: 'OpenSubtitles', sd: 'SubDL', ss: 'SubSource', sro: 'Subs.ro', adb: 'AltyazıDB', gd: 'Gestdown', as: 'AniSub' };
 const LIMITS = [5, 10, 15, 20];
 const HI_MODES = { show: 'hiShow', last: 'hiLast', hide: 'hiHide' };
-const SOURCE_NAMES = { os: 'OpenSubtitles', subdl: 'SubDL', subsource: 'SubSource', altyazidb: 'AltyazıDB', gestdown: 'Gestdown', anisub: 'AniSub' };
-const KEY_SOURCES = ['os', 'subdl', 'subsource', 'altyazidb'];
+const FORCED_MODES = { last: 'forcedLast', first: 'forcedFirst', hide: 'forcedHide' };
+const SOURCE_NAMES = { os: 'OpenSubtitles', subdl: 'SubDL', subsource: 'SubSource', subsro: 'Subs.ro', altyazidb: 'AltyazıDB', gestdown: 'Gestdown', anisub: 'AniSub' };
+const KEY_SOURCES = ['os', 'subdl', 'subsource', 'subsro', 'altyazidb'];
+// Subs.ro'nun ayırdığı diller; önizlemede yalnızca bunlarda satırı gösterilir.
+const SUBSRO_LANGUAGES = ['ro', 'en', 'it', 'fr', 'de', 'hu', 'el', 'pt-pt', 'pt-br', 'es', 'sp', 'ea'];
 const STEPS = ['sourcesTitle', 'languagesTitle', 'optionsTitle', 'installTitle'];
 let allowance = null;
 // Kaynak denemesinin durumu: null, 'running', bir hata metninin anahtarı ya da sonuç listesi.
@@ -819,7 +829,7 @@ function detectUi() {
 let ui = detectUi();
 
 // Ayarlar bu tarayıcıda hatırlanır. Adres ayar taşımıyorsa (site doğrudan açıldıysa) hatırlanan ayar yüklenir.
-const NO_SOURCES = { os: null, subdl: null, subsource: null, altyazidb: null };
+const NO_SOURCES = { os: null, subdl: null, subsource: null, subsro: null, altyazidb: null };
 let restored = false;
 if (!auth && !selected.length) {
   try {
@@ -830,6 +840,7 @@ if (!auth && !selected.length) {
     if (saved?.fallback === true) fallback = true;
     if (saved?.machine === false) hideMachine = true;
     if (HI_MODES[saved?.hi]) hi = saved.hi;
+    if (FORCED_MODES[saved?.forced]) forced = saved.forced;
     if (saved?.clean === true) clean = true;
     if (saved?.ass === true) ass = true;
     if (saved?.gestdown === true) gestdown = true;
@@ -943,8 +954,11 @@ function setMsg(name, key) {
 const hasSource = () => !!auth || gestdown || anisubOn();
 // AltyazıDB yalnızca Türkçe ve İngilizce altyazı verir; bu diller seçili değilse bölümü gösterilmez.
 const adbShown = () => !!sources.altyazidb || ui === 'tr' || ui === 'en';
+// Subs.ro bir Romen sitesidir; bölümü yalnızca site Romenceyken gösterilir. Anahtarı bağlı olan her dilde görür (bağlantıyı kesebilsin diye).
+const sroShown = () => !!sources.subsro || ui === 'ro';
 const sourceList = () => [
   ['OpenSubtitles', !!sources.os], ['SubDL', !!sources.subdl], ['SubSource', !!sources.subsource],
+  ...(sroShown() ? [['Subs.ro', !!sources.subsro]] : []),
   ...(adbShown() ? [['AltyazıDB', !!sources.altyazidb]] : []),
   ['Gestdown', gestdown],
   ...(anisubShown() ? [['AniSub', anisub]] : []),
@@ -965,6 +979,7 @@ function renderStatic() {
   $('password').placeholder = tr('password');
   $('subdlKey').placeholder = tr('apiKey');
   $('subsourceKey').placeholder = tr('apiKey');
+  $('subsroKey').placeholder = tr('apiKey');
   $('altyazidbKey').placeholder = tr('apiKey');
   $('search').placeholder = tr('searchPlaceholder');
   $('findQuery').placeholder = tr('findPlaceholder');
@@ -981,6 +996,8 @@ function renderStatic() {
   $('machine').checked = hideMachine;
   $('hi').replaceChildren(...Object.entries(HI_MODES).map(([mode, key]) => new Option(tr(key), mode)));
   $('hi').value = hi;
+  $('forced').replaceChildren(...Object.entries(FORCED_MODES).map(([mode, key]) => new Option(tr(key), mode)));
+  $('forced').value = forced;
   $('clean').checked = clean;
   $('ass').checked = ass;
   const priCodes = Object.keys(PREFER_NAMES).filter((code) => code !== 'as' || anisubShown());
@@ -1106,22 +1123,28 @@ function preview(pri) {
   const quotaTag = tr('tagQuota') + (allowance != null ? ' · ' + tr('quotaLeft', { n: allowance }) : '');
   const freeRows = (l) => {
     const rows = [];
-    const add = (src, key, rel, more = {}) => rows.push({ src, tag: tr(key) + (more.hi ? ' · HI' : ''), rel, hi: !!more.hi, own: !more.official });
+    const add = (src, key, rel, more = {}) => rows.push({
+      src, tag: tr(key) + (more.forced ? ' · ' + tr('forced') : '') + (more.hi ? ' · HI' : ''), rel, hi: !!more.hi, forced: !!more.forced, own: !more.official && !more.forced,
+    });
     if (sources.os) {
       add('os', 'tagOfficial', sample.official, { official: true });
       add('os', 'tagPool', sample.pool);
+      add('os', 'tagOfficial', sample.forced, { official: true, forced: true });
     }
     if (sources.subdl) {
       add('sd', 'tagSubdl', sample.subdl);
       add('sd', 'tagSubdl', sample.subdlHi, { hi: true });
     }
     if (sources.subsource) add('ss', 'tagSubsource', sample.subsource);
+    if (sources.subsro && SUBSRO_LANGUAGES.includes(l.code)) add('sro', 'tagSubsro', sample.subsro);
     if (sources.altyazidb && (l.code === 'tr' || l.code === 'en')) add('adb', 'tagAltyazidb', sample.altyazidb);
     if (gestdown) add('gd', 'tagGestdown', sample.gestdown);
-    let out = hi === 'hide' ? rows.filter((r) => !r.hi) : rows;
+    let out = rows.filter((r) => (hi !== 'hide' || !r.hi) && (forced !== 'hide' || !r.forced));
     if (pri) out = [...out.filter((r) => r.src === pri), ...out.filter((r) => r.src !== pri)];
     if (hi === 'last') out = [...out.filter((r) => !r.hi), ...out.filter((r) => r.hi)];
-    return out;
+    // Yalnızca yabancı konuşmaları içerenler ücretsizlerin sonunda durur; istenirse başına alınır.
+    const parts = [out.filter((r) => !r.forced), out.filter((r) => r.forced)];
+    return forced === 'first' ? [...parts[1], ...parts[0]] : [...parts[0], ...parts[1]];
   };
   const groups = [];
   const shown = (fallback ? selected.slice(0, 1) : selected).map((code) => byCode.get(code));
@@ -1174,11 +1197,15 @@ function renderPreview(pri) {
   }
 }
 
-/** Örnek karedeki altyazı: ilk seçili dilde kısa replikler; "çift dilli" açıksa altında ikinci dil. */
+/** Örnek karedeki altyazı: sayfa dilinde kısa replikler; "çift dilli" açıksa altında seçili dillerden biri. */
 function renderCaps() {
-  const lines = (l) => DIALOG[l.code] || DIALOG[l.code.slice(0, 2)] || DIALOG.en;
+  const lines = (code) => DIALOG[code] || DIALOG[code.slice(0, 2)] || DIALOG.en;
   const first = byCode.get(selected[0]);
-  const second = dual ? byCode.get(selected[1]) : null;
+  // Üstteki (ana) satır her zaman sayfanın dilinde yazılır. Çift dillide altına seçili ikinci dil gelir;
+  // o da sayfanın diliyse aynı replik iki kez yazılmasın diye seçili ilk dil gelir.
+  const top = ui;
+  const other = dual ? byCode.get(selected[1]) : null;
+  const second = other && lines(other.code) === lines(top) ? first : other;
   const key = [ui, first?.code, second?.code, clean, capIdx].join('|');
   if (key === capShown) return;
   capShown = key;
@@ -1188,9 +1215,9 @@ function renderCaps() {
   const col = make('div', 'capcol');
   // İkinci replikte ses açıklaması ve konuşmacı adı vardır; "temizle" ayarı bunları kaldırır.
   const noisy = capIdx === 1 && !clean;
-  if (noisy) col.append(make('span', 'cap sfx', (STRINGS[first.code.slice(0, 2)] || STRINGS[ui]).sfx));
-  col.append(make('span', 'cap', (noisy ? 'JOHN: ' : '') + lines(first)[capIdx]));
-  if (second) col.append(make('span', 'cap second', lines(second)[capIdx]));
+  if (noisy) col.append(make('span', 'cap sfx', (STRINGS[top.slice(0, 2)] || STRINGS[ui]).sfx));
+  col.append(make('span', 'cap', (noisy ? 'JOHN: ' : '') + lines(top)[capIdx]));
+  if (second) col.append(make('span', 'cap second', lines(second.code)[capIdx]));
   for (const line of col.children) line.dir = 'auto';
   box.replaceChildren(col);
 }
@@ -1202,12 +1229,14 @@ function render() {
     $('osStatus').textContent = tr('connected', { user: sources.os });
     $('allowance').textContent = allowance != null ? tr('allowance', { n: allowance }) : '';
   }
-  for (const name of ['subdl', 'subsource', 'altyazidb']) {
+  for (const name of ['subdl', 'subsource', 'subsro', 'altyazidb']) {
     $(name + 'Form').hidden = !!sources[name];
     $(name + 'Done').hidden = !sources[name];
     if (sources[name]) $(name + 'Status').textContent = tr('keyConnected', { key: sources[name] });
   }
   $('altyazidbPanel').hidden = !adbShown();
+  $('subsroPanel').hidden = !sroShown();
+  $('subsroLegend').hidden = !sroShown();
   $('gestdownPanel').className = 'fsrc' + (gestdown ? ' on' : '');
   $('anisubPanel').className = 'fsrc' + (anisub ? ' on' : '');
 
@@ -1253,7 +1282,7 @@ function render() {
   const pri = prefer === 'as' && !anisubShown() ? '' : prefer;
   // Varsayılan liste ayarları adrese yazılmaz; eski adresler de aynen çalışır.
   const options = (max ? '&max=' + max : '') + (match ? '' : '&match=0') + (fallback ? '&fb=1' : '') +
-    (hideMachine ? '&mt=0' : '') + (hi !== 'show' ? '&hi=' + hi : '') + (clean ? '&clean=1' : '') + (ass ? '&ass=1' : '') +
+    (hideMachine ? '&mt=0' : '') + (hi !== 'show' ? '&hi=' + hi : '') + (forced !== 'last' ? '&fo=' + forced : '') + (clean ? '&clean=1' : '') + (ass ? '&ass=1' : '') +
     (gestdown ? '&gd=1' : '') + (anisubOn() ? '&as=1' : '') + (dual ? '&dual=1' : '') + (pri ? '&pri=' + pri : '');
   const manifestUrl = BASE_URL + '/languages=' + selected.join(',') + '&ui=' + ui + options + (auth ? '&auth=' + auth : '') + '/manifest.json';
   const install = $('install');
@@ -1273,13 +1302,14 @@ function render() {
   const limits = [...new Set([...LIMITS, max || LIMITS[0]])].sort((a, b) => a - b);
   segment('limit', [['', tr('limitNone')], ...limits.map((n) => [String(n), String(n)])], onLimit);
   segment('hi', Object.entries(HI_MODES).map(([mode, key]) => [mode, tr(key)]), onHi);
-  const usable = { os: sources.os, sd: sources.subdl, ss: sources.subsource, adb: sources.altyazidb, gd: gestdown, as: anisubOn() };
+  segment('forced', Object.entries(FORCED_MODES).map(([mode, key]) => [mode, tr(key)]), onForced);
+  const usable = { os: sources.os, sd: sources.subdl, ss: sources.subsource, sro: sources.subsro, adb: sources.altyazidb, gd: gestdown, as: anisubOn() };
   segment('pri', [['', tr('priNone')], ...Object.keys(PREFER_NAMES).filter((code) => usable[code] || code === pri).map((code) => [code, PREFER_NAMES[code]])], onPri);
 
   // Yükleme adımındaki özet ve yandaki kaynak sayacı.
   const all = sourceList();
   const count = all.filter(([, on]) => on).length;
-  const changed = [!match, fallback, hideMachine, clean, ass, dual, !!max, hi !== 'show', !!pri].filter(Boolean).length;
+  const changed = [!match, fallback, hideMachine, clean, ass, dual, !!max, hi !== 'show', forced !== 'last', !!pri].filter(Boolean).length;
   const names = selected.map((code) => langName(byCode.get(code))).join(', ');
   $('checks').replaceChildren(...[
     [count > 0, tr('chkSrc', { n: count })],
@@ -1303,7 +1333,7 @@ function render() {
   addonBase = base;
   renderFind();
   renderView();
-  storageSet('saved', JSON.stringify({ auth, sources, selected, max, match, fallback, machine: !hideMachine, hi, clean, ass, gestdown, anisub, dual, prefer }));
+  storageSet('saved', JSON.stringify({ auth, sources, selected, max, match, fallback, machine: !hideMachine, hi, forced, clean, ass, gestdown, anisub, dual, prefer }));
 }
 
 function renderFind() {
@@ -1546,7 +1576,7 @@ $('osForm').addEventListener('submit', (event) => {
   if (username.includes('@')) return setMsg('os', 'badLogin');
   connect('os', { os: { username, password: $('password').value } }, event.target);
 });
-for (const name of ['subdl', 'subsource', 'altyazidb']) {
+for (const name of ['subdl', 'subsource', 'subsro', 'altyazidb']) {
   $(name + 'Form').addEventListener('submit', (event) => {
     event.preventDefault();
     connect(name, { [name]: $(name + 'Key').value.trim() }, event.target);
@@ -1681,6 +1711,10 @@ function onHi() {
   hi = HI_MODES[$('hi').value] ? $('hi').value : 'show';
   render();
 }
+function onForced() {
+  forced = FORCED_MODES[$('forced').value] ? $('forced').value : 'last';
+  render();
+}
 function onPri() {
   prefer = PREFER_NAMES[$('pri').value] ? $('pri').value : '';
   render();
@@ -1699,6 +1733,7 @@ $('machine').addEventListener('change', () => {
   render();
 });
 $('hi').addEventListener('change', onHi);
+$('forced').addEventListener('change', onForced);
 $('clean').addEventListener('change', () => {
   clean = $('clean').checked;
   render();

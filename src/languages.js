@@ -97,6 +97,16 @@ export function gestdownCode(code) {
   return BY_CODE.has(code) ? code : null;
 }
 
+// Subs.ro yalnızca bu dilleri ayırır (aramadaki `language` değerleri); gerisi sitede "alt" (diğer) diye geçer.
+const SUBSRO_CODES = {
+  ro: 'ro', en: 'en', it: 'ita', fr: 'fra', de: 'ger', hu: 'ung', el: 'gre', 'pt-pt': 'por', 'pt-br': 'por', es: 'spa', sp: 'spa', ea: 'spa',
+};
+
+/** OpenSubtitles kodunu Subs.ro'nun dil koduna çevirir; Subs.ro'da ayrı bir dil değilse null. */
+export function subsroCode(code) {
+  return SUBSRO_CODES[code] || null;
+}
+
 /** Dilin adını verilen arayüz dilinde döndürür (ör. 'de' + 'tr' -> 'Almanca'). */
 export function languageName(code, uiLang) {
   const lang = BY_CODE.get(code);

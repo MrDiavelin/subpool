@@ -126,3 +126,19 @@ export function episodeOf(name) {
   m = base.match(/\[(\d{1,3})(?:v\d+)?\]/);
   return { season, episode: m ? Number(m[1]) : null };
 }
+
+// Başlığın bittiği yer: yıl, sezon/bölüm numarası ya da ilk teknik parça.
+const TITLE_END = /\.((19|20)\d{2}|s\d{1,2}(\.?e\d{1,4})?|\d{1,2}x\d{2,3})\./;
+
+/**
+ * Sürüm adı, altyazının yalnızca yabancı dildeki konuşmaları içerdiğini ("forced") söylüyor mu?
+ * Sözcük ancak başlık bittikten sonra geçiyorsa sayılır; "Forced.Vengeance.1982.720p" gibi adlarda başlığın parçasıdır.
+ * Başlığın nerede bittiği anlaşılamayan adlar için hiçbir şey söylenmez.
+ */
+export function forcedRelease(name) {
+  const text = `.${String(name || '').trim().replace(EXTENSION, '').toLowerCase().replace(/['’]/g, '').replace(/[^a-z0-9]+/g, '.')}.`;
+  const at = text.lastIndexOf('.forced.');
+  if (at < 0) return false;
+  const starts = [text.search(TITLE_END), text.search(TECH)].filter((index) => index >= 0);
+  return starts.length > 0 && at > Math.min(...starts);
+}
