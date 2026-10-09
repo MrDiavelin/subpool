@@ -1,7 +1,7 @@
 import { OpenSubtitlesClient, USER_AGENT } from './opensubtitles.js';
 import { SubdlClient } from './subdl.js';
 import { SubsourceClient } from './subsource.js';
-import { SubsroClient, subsroPick } from './subsro.js';
+import { SubsroClient, SubsroError, subsroPick } from './subsro.js';
 import { ALTYAZIDB_LANGUAGES, AltyazidbClient } from './altyazidb.js';
 import { GestdownClient } from './gestdown.js';
 import { officialSubtitles } from './official.js';
@@ -19,7 +19,7 @@ import { createSealer, sha256 } from './crypto.js';
 import { MemoryStore, createStore } from './store.js';
 import { DEFAULT_UI, normalizeUi, t } from './i18n.js';
 
-const VERSION = '3.15.0';
+const VERSION = '3.15.1';
 const MAX_LANGUAGES = 10;
 // Kullanıcı isterse her dilde gösterilecek altyazı sayısını sınırlar; varsayılan sınırsızdır.
 const MAX_PER_LANGUAGE = 50;
@@ -958,7 +958,7 @@ export function createAddon(env = process.env) {
       try {
         return await subsro.download(id);
       } catch (err) {
-        if ([401, 403].includes(err.status)) throw Object.assign(new Error('key'), { keyRejected: 'Subs.ro' });
+        if ([401, 403].includes(err.status) && err.api !== false) throw Object.assign(new Error('key'), { keyRejected: 'Subs.ro' });
         throw err;
       }
     }, where).catch((err) => {
@@ -1120,9 +1120,17 @@ export function createAddon(env = process.env) {
     for (const [field, name, Client] of [['subdl', 'sd', SubdlClient], ['subsource', 'ss', SubsourceClient], ['subsro', 'sr', SubsroClient], ['altyazidb', 'ad', AltyazidbClient]]) {
       if (body?.[field] === undefined) continue;
       const apiKey = String(body[field] || '').trim();
-      if (!isText(apiKey) || !(await new Client({ apiKey, userAgent: USER_AGENT }).verify())) {
-        return sendJson(res, { error: 'bad_key' }, 401);
+      let valid = false;
+      try {
+        valid = isText(apiKey) && await new Client({ apiKey, userAgent: USER_AGENT }).verify();
+      } catch (err) {
+        if (!(err instanceof SubsroError)) throw err;
+        // Sitenin yanıtı günlüğe yazılır (anahtar yazılmaz), sorun bildirildiğinde bakılabilsin. Anahtar yanlış denmez:
+        // site anahtar hakkında bir şey söylememiştir.
+        console.error(`[connect] Subs.ro anahtarı doğrulayamadı: ${String(err.message).slice(0, 200)} (${err.detail || '-'})`);
+        return sendJson(res, { error: 'source_refused' }, 502);
       }
+      if (!valid) return sendJson(res, { error: 'bad_key' }, 401);
       secrets[name] = apiKey;
     }
 
@@ -1214,7 +1222,7 @@ export function createAddon(env = process.env) {
         return { source, status: 'ok', ...(await within(run(), sourceDeadline)) };
       } catch (err) {
         if (err instanceof LoginError) return { source, status: 'login' };
-        const badKey = err.rejected || [401, 403].includes(err.status) || (source === 'subdl' && /auth|api.?key/i.test(err.message));
+        const badKey = err.rejected || ([401, 403].includes(err.status) && err.api !== false) || (source === 'subdl' && /auth|api.?key/i.test(err.message));
         if (source !== 'os' && source !== 'anisub' && badKey) return { source, status: 'key' };
         console.error(`[test] ${source}: ${err.message}`);
         return { source, status: 'error' };

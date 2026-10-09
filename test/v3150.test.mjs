@@ -190,6 +190,8 @@ globalThis.fetch = async (input, init) => {
       sroCalls.push({ path: url.pathname, key, query: url.search });
       // Gerçek site tanımadığı anahtara 403 verir.
       if (key === 'sahte-red') return json({ message: 'Invalid API key', status: 403 }, 403);
+      // Sitenin önündeki bir katman (ör. güvenlik duvarı) isteği API'ye ulaşmadan geri çevirirse gövde JSON olmaz.
+      if (key === 'sahte-engel') return new Response('<html><body>Access denied</body></html>', { status: 403, headers: { 'content-type': 'text/html', server: 'sahte-duvar' } });
       if (url.pathname === '/v1.0/quota') {
         // Gerçek sitenin yanıtı: { remaining, total, type, used }. Belgesindeki alan adları başkadır; o da tanınır.
         if (key === 'sahte-belge') return json({ status: 200, meta: { requestId: 'sahte' }, quota: { total_quota: 100, used_quota: 1, remaining_quota: 99, quota_type: 'api_key', api_key: 'sahte…' } });
@@ -323,10 +325,12 @@ res = await post('/api/connect', { subsro: 'sahte-anonim' });
 check('bağlama: sitenin "anonymous" kotasıyla yanıtladığı anahtar reddedilir', res.status === 401 && res.data.error === 'bad_key', JSON.stringify(res.data));
 res = await post('/api/connect', { subsro: 'sahte-red' });
 check('bağlama: sitenin 403 verdiği (tanımadığı) anahtar reddedilir', res.status === 401 && res.data.error === 'bad_key', JSON.stringify(res.data));
+res = await post('/api/connect', { subsro: 'sahte-engel' });
+check('bağlama: API\'den gelmeyen 403 (aradaki bir katman) "anahtar yanlış" sayılmaz', res.status === 502 && res.data.error === 'source_refused' && !res.data.auth, JSON.stringify(res.data));
 res = await post('/api/connect', { subsro: 'sahte-belge' });
 check('bağlama: kota yanıtı belgedeki alan adlarıyla gelse de anahtar tanınır', res.status === 200 && !!res.data.sources.subsro, JSON.stringify(res.data.sources));
 res = await post('/api/connect', { subsro: '   ' });
-check('bağlama: boş anahtar reddedilir, siteye sorulmaz', res.status === 401 && count('/quota') === 4, `${res.status} / ${count('/quota')}`);
+check('bağlama: boş anahtar reddedilir, siteye sorulmaz', res.status === 401 && count('/quota') === 5, `${res.status} / ${count('/quota')}`);
 res = await post('/api/connect', { auth, remove: 'subsro' });
 check('bağlama: kaldırınca kaynak gider', res.status === 200 && res.data.sources.subsro === null && res.data.auth === null, JSON.stringify(res.data));
 res = await post('/api/connect', { auth: sealer.seal({ sd: 'sahte-subdl-1234', sr: KEY }), remove: 'subsro' });
@@ -463,6 +467,8 @@ res = await post('/api/test', { auth, languages: ['tr'] });
 check('deneme: Subs.ro\'nun ayırmadığı dilde yalnızca anahtar doğrulanır', strip(res) === JSON.stringify([{ source: 'subsro', status: 'ok', count: 0 }]) && sroCalls.length === 1 && sroCalls[0].path === '/v1.0/quota', JSON.stringify(res.data));
 res = await post('/api/test', { auth: sealer.seal({ sr: 'sahte-red' }), languages: ['ro'] });
 check('deneme: sonradan reddedilen anahtar "anahtar" hatası verir', strip(res) === JSON.stringify([{ source: 'subsro', status: 'key' }]), JSON.stringify(res.data));
+res = await post('/api/test', { auth: sealer.seal({ sr: 'sahte-engel' }), languages: ['ro'] });
+check('deneme: API\'den gelmeyen 403 "anahtar" değil genel hata verir', strip(res) === JSON.stringify([{ source: 'subsro', status: 'error' }]), JSON.stringify(res.data));
 res = await post('/api/test', { auth: sealer.seal({ sr: 'sahte-anonim' }), languages: ['tr'] });
 check('deneme: "anonymous" kotasıyla yanıtlanan anahtar "anahtar" hatası verir', strip(res) === JSON.stringify([{ source: 'subsro', status: 'key' }]), JSON.stringify(res.data));
 check('istekler: Subs.ro\'ya giden her istek bir anahtar taşıdı', sroCalls.every((c) => c.key));

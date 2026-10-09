@@ -1,9 +1,12 @@
 const API = 'https://api.subs.ro/v1.0';
 
 export class SubsroError extends Error {
-  constructor(status, message) {
+  constructor(status, message, { api = true, detail = '' } = {}) {
     super(`Subs.ro ${status}${message ? `: ${message}` : ''}`);
     this.status = status;
+    // api: yanıt sitenin kendi API'sinden mi geldi, yoksa aradaki bir katmandan mı (ör. güvenlik duvarının sayfası).
+    this.api = api;
+    this.detail = detail;
   }
 }
 
@@ -22,7 +25,10 @@ export class SubsroClient {
     });
     if (!res.ok) {
       const data = await res.json().catch(() => null);
-      throw new SubsroError(res.status, data?.message || '');
+      // Sitenin kendi hata yanıtı { status, message } biçimindedir; başka bir gövde anahtar hakkında bir şey söylemez.
+      const api = typeof data?.message === 'string';
+      const detail = ['content-type', 'server', 'cf-mitigated'].map((name) => `${name}=${res.headers.get(name) || '-'}`).join(', ');
+      throw new SubsroError(res.status, api ? data.message : '', { api, detail });
     }
     return res;
   }
@@ -45,7 +51,12 @@ export class SubsroClient {
       const quota = data?.quota ?? data;
       return (quota?.type ?? quota?.quota_type) === 'api_key';
     } catch (err) {
-      if ([401, 403].includes(err.status)) return false;
+      // Anahtarı yalnızca sitenin kendi yanıtı reddeder; aradaki bir katmanın 401/403'ü anahtarın yanlış olduğunu göstermez.
+      if ([401, 403].includes(err.status) && err.api) {
+        // Sitenin sözü günlüğe yazılır (anahtar yazılmaz).
+        console.error(`[subsro] anahtar reddedildi: ${String(err.message).slice(0, 120)}`);
+        return false;
+      }
       throw err;
     }
   }

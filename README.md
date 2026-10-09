@@ -329,6 +329,8 @@ SubDL, SubSource ve Subs.ro anahtarları sunucuya değil, her kullanıcının ke
   altyazıları öne alınabilir ya da gizlenebilir; SubDL ve SubSource'ta sürüm adı "forced" diyen altyazılar da tanınır,
   AltyazıDB'nin işaretlediği forced altyazılar artık listelenir. Ayar sayfasındaki örnek karede altyazı sayfanın
   dilinde yazılır.
+- **3.15.1:** Subs.ro anahtarı doğrulanırken sitenin kendi API'sinden gelmeyen bir 401/403 yanıtı artık "anahtar
+  kabul edilmedi" sayılmaz; genel hata verilir ve sitenin yanıtı (anahtar olmadan) sunucu günlüğüne yazılır.
 - **3.14.1:** Oynatıcının ASS stilini gösterip göstermediğini denemek için `ass=test` ile açılan iki deneme altyazısı.
 - **3.14.2:** Oynatıcının altyazı listesinde hangi bilgiyi gösterdiğini denemek için adrese `test=fields` eklenince açılan dört deneme altyazısı.
 - **3.14.3:** Deneme adresleri (`ass=test`, `test=fields`) hesap bağlanmadan da kurulabilir.
