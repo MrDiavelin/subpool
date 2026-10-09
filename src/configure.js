@@ -95,7 +95,8 @@ const POPULAR = [
   'fi', 'el', 'he', 'fa', 'hi', 'id', 'ro', 'hu', 'cs', 'bg', 'uk', 'hr', 'sr', 'bs', 'az-az', 'vi', 'th', 'ms',
 ];
 
-function keyPanel(name, title, signup) {
+// note: kaynak geçici olarak çalışmıyorsa kartta gösterilecek uyarının çeviri anahtarı.
+function keyPanel(name, title, signup, note = '') {
   return `
         <div class="src" id="${name}Panel">
           <button class="src-h" type="button" id="${name}Head" aria-expanded="false" aria-controls="${name}Body">
@@ -103,7 +104,8 @@ function keyPanel(name, title, signup) {
             <span class="badge" id="${name}Badge"></span><span class="chev" id="${name}Chev" aria-hidden="true">+</span>
           </button>
           <div class="src-b" id="${name}Body" hidden>
-            <p class="more" data-i18n="${name}Intro" data-part="more"></p>
+            <p class="more" data-i18n="${name}Intro" data-part="more"></p>${note ? `
+            <p class="more down" id="${name}Down" data-i18n="${note}"></p>` : ''}
             <form class="stack" id="${name}Form">
               <input class="mono" type="password" id="${name}Key" autocomplete="off" spellcheck="false" required>
               <div class="row">
@@ -317,6 +319,7 @@ export function configurePage({ baseUrl, selected, ui, auth, sources, max, match
   .sub { color:var(--muted); font-size:13px; }
   .more { color:var(--muted); font-size:14px; }
   .more:empty { display:none; }
+  .more.down { color:var(--cost); }
   .badge { flex:none; font-size:12px; font-weight:600; padding:3px 10px; border-radius:999px; border:1px solid var(--line); color:var(--muted); }
   .badge.on { background:var(--free-bg); border-color:transparent; color:var(--free); }
   .src-b { padding:0 16px 16px; display:flex; flex-direction:column; gap:10px; }
@@ -593,7 +596,7 @@ ${misconfigured ? '<p class="warn"><b>Server misconfigured:</b> OS_API_KEY / CON
               </div>
               <p class="status" id="osMsg" role="status"></p>
             </div>
-          </div>${keyPanel('subdl', 'SubDL', 'https://subdl.com/panel/api')}${keyPanel('subsource', 'SubSource', 'https://subsource.net/dashboard/profile')}${keyPanel('subsro', 'Subs.ro', 'https://subs.ro/api')}${keyPanel('altyazidb', 'AltyazıDB', 'https://altyazidb.com/')}
+          </div>${keyPanel('subdl', 'SubDL', 'https://subdl.com/panel/api')}${keyPanel('subsource', 'SubSource', 'https://subsource.net/dashboard/profile')}${keyPanel('subsro', 'Subs.ro', 'https://subs.ro/api', 'subsroDown')}${keyPanel('altyazidb', 'AltyazıDB', 'https://altyazidb.com/')}
         </div>
 
         <div class="group">

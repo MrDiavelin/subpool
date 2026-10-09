@@ -518,6 +518,8 @@ function runPage(pageHtml, saved = null) {
 const link = (p) => p.$('url').textContent;
 const html = await text('/configure');
 check('sayfa: Subs.ro kartı, anahtar kutusu, anahtar alma bağlantısı ve açıklama satırı var', ['id="subsroPanel"', 'id="subsroKey"', 'id="subsroForm"', 'data-remove="subsro"', 'href="https://subs.ro/api"', 'data-i18n="subsroIntro"', 'data-i18n="tagSubsro"', 'data-i18n="howSubsro"'].every((s) => html.includes(s)), ['id="subsroPanel"', 'id="subsroKey"', 'id="subsroForm"', 'data-remove="subsro"', 'href="https://subs.ro/api"', 'data-i18n="subsroIntro"', 'data-i18n="tagSubsro"', 'data-i18n="howSubsro"'].filter((s) => !html.includes(s)).join());
+check('sayfa: Subs.ro kartında "şu an çalışmıyor" uyarısı var, başka kartta yok', html.includes('id="subsroDown" data-i18n="subsroDown"') && (html.match(/class="more down"/g) || []).length === 1);
+check('metinler: uyarı her dilde siteyi adıyla anar ve Türkçesi yöneticilere yazıldığını söyler', Object.values(STRINGS).every((s) => s.subsroDown.includes('subs.ro')) && /Şu an çalışmıyor/.test(T.subsroDown) && /yöneticilerine yazıldı/.test(T.subsroDown));
 check('sayfa: forced seçimi var, sunucu mesajı sayfaya gömülmez', html.includes('id="forced"') && html.includes('data-i18n="forcedHint"') && !html.includes(T.subsroLimit[0]));
 
 let page = runPage(await text(`/languages=ro,en&ui=tr&auth=${auth}/configure`));
