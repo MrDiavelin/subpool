@@ -6,12 +6,13 @@ import { ALTYAZIDB_LANGUAGES, AltyazidbClient } from './altyazidb.js';
 import { GestdownClient } from './gestdown.js';
 import { officialSubtitles } from './official.js';
 import { anisubReachable, anisubSubtitles } from './anisub.js';
+import { TsdbClient } from './tsdb.js';
 import { ANIME_SITES, kitsuMap, kitsuSearch } from './kitsu.js';
 import { seriesInfo } from './cinemeta.js';
 import { pickSubtitle, rarSelfTest, UnsupportedArchiveError } from './archive.js';
 import { assSample, assToSrt, decodeSubtitle, errorSrt, isAss, mergeSubtitles, releaseSimilarity, stripHearingImpaired, withNotice } from './subtitle.js';
 import { forcedRelease, parseRelease, releaseMatch, sameRelease } from './release.js';
-import { fromStremioLang, gestdownCode, isLanguage, languageName, stremioLang, subdlCode, subsourceName, subsroCode } from './languages.js';
+import { fromStremioLang, gestdownCode, isLanguage, languageName, stremioLang, subdlCode, subsourceName, subsroCode, tsdbCode } from './languages.js';
 import { configurePage } from './configure.js';
 import { LOGO_PNG, LOGO_SVG } from './logo.js';
 import { FONTS } from './fonts.js';
@@ -19,7 +20,7 @@ import { createSealer, sha256 } from './crypto.js';
 import { MemoryStore, createStore } from './store.js';
 import { DEFAULT_UI, normalizeUi, t } from './i18n.js';
 
-const VERSION = '3.15.2';
+const VERSION = '3.17.0';
 const MAX_LANGUAGES = 10;
 // Kullanıcı isterse her dilde gösterilecek altyazı sayısını sınırlar; varsayılan sınırsızdır.
 const MAX_PER_LANGUAGE = 50;
@@ -49,14 +50,14 @@ const TEST_SERIES = { tvdb: 81189, season: 1, episode: 1 };
 // Çift dilli altyazı açıkken listenin başına en fazla bu kadar birleşik altyazı eklenir.
 const DUAL_MAX = 3;
 // Liste kısaltılırken her siteden en az bir altyazı kalsın diye kaynakların ait olduğu site.
-const SITE = { official: 'os', pool: 'os', quota: 'os', subdl: 'subdl', subsource: 'subsource', subsro: 'subsro', altyazidb: 'altyazidb', gestdown: 'gestdown', anisub: 'anisub' };
+const SITE = { official: 'os', pool: 'os', quota: 'os', subdl: 'subdl', subsource: 'subsource', subsro: 'subsro', altyazidb: 'altyazidb', gestdown: 'gestdown', tsdb: 'tsdb', anisub: 'anisub' };
 // Aynı hesapla bu sürede en fazla bu kadar hak harcanır.
 const QUOTA_BURST = { max: 1, windowSec: 5 };
 // Listede gösterilen kalan indirme hakkı bu kadar saniye hatırlanır (indirme yapılınca hemen güncellenir).
 const QUOTA_INFO_TTL = 5 * 60;
 const QUOTA_INFO_DEADLINE_MS = 3000;
 // Adresteki "pri" değeri: listede öne alınacak kaynak.
-const PREFER = { os: 'os', sd: 'subdl', ss: 'subsource', sro: 'subsro', adb: 'altyazidb', gd: 'gestdown', as: 'anisub' };
+const PREFER = { os: 'os', sd: 'subdl', ss: 'subsource', sro: 'subsro', adb: 'altyazidb', gd: 'gestdown', tdb: 'tsdb', as: 'anisub' };
 
 const VIDEO_HINT = /^[A-Za-z0-9][A-Za-z0-9.-]{0,99}$/;
 
@@ -67,8 +68,8 @@ function videoHint(name) {
   // Sürümü belirleyen parçalar (kaynak, grup) adın sonundadır; uzun adlarda baş taraf atılır.
   return text.length > 100 ? text.slice(-100).replace(/^[^.]*\./, '').replace(/^[.-]+/, '') : text;
 }
-// AniSub'a giden isteklerde eklentinin kim olduğu ve nereden ulaşılacağı yazar.
-const ANISUB_AGENT = `SubPool/${VERSION} (+https://github.com/MrDiavelin/subpool; https://x.com/Diavelin)`;
+// AniSub'a ve TheSubtitleDB'ye giden isteklerde eklentinin kim olduğu ve nereden ulaşılacağı yazar.
+const CONTACT_AGENT = `SubPool/${VERSION} (+https://github.com/MrDiavelin/subpool; https://x.com/Diavelin)`;
 
 const SRT = 'application/x-subrip; charset=utf-8';
 const ASS = 'text/x-ssa; charset=utf-8';
@@ -145,8 +146,9 @@ export function createAddon(env = process.env) {
    * "fb=1" (sonraki diller yalnızca yedek), "mt=0" (makine çevirileri gizli), "hi=last|hide" (işitme engelli
    * altyazılar sonda ya da gizli), "fo=first|hide" (yalnızca yabancı konuşmaları içeren altyazılar önde ya da gizli;
    * yazılmazsa sonda), "clean=1" (ses açıklamaları temizlenir), "gd=1" (Gestdown kaynağı açık; anahtar
-   * gerektirmediği için şifreli parçada yer almaz), "as=1" (AniSub kaynağı açık; o da anahtar istemez),
-   * "dual=1" (ilk iki dil tek altyazıda birleştirilir), "pri=os|sd|ss|sro|adb|gd|as" (bu kaynağın ücretsiz
+   * gerektirmediği için şifreli parçada yer almaz), "tdb=1" (TheSubtitleDB kaynağı açık) ve "as=1" (AniSub kaynağı
+   * açık); onlar da anahtar istemez, "dual=1" (ilk iki dil tek altyazıda birleştirilir),
+   * "pri=os|sd|ss|sro|adb|gd|tdb|as" (bu kaynağın ücretsiz
    * altyazıları her dilde öne alınır), "ass=1" (ASS/SSA biçimindeki altyazılar SRT'ye çevrilmeden verilir).
    * Şifre çözülemezse kullanıcının anahtar isteyen hiçbir kaynağı yok sayılır.
    */
@@ -172,6 +174,7 @@ export function createAddon(env = process.env) {
       // Deneme: listenin başına, oynatıcının altyazı listesinde hangi alanı gösterdiğini sınayan örnek altyazılar eklenir.
       fieldTest: params.get('test') === 'fields',
       gestdown: params.get('gd') === '1',
+      tsdb: params.get('tdb') === '1',
       anisub: params.get('as') === '1',
       dual: params.get('dual') === '1',
       prefer: PREFER[params.get('pri')] || null,
@@ -182,7 +185,7 @@ export function createAddon(env = process.env) {
       altyazidb: secrets.ad || null,
     };
     const hasKey = !!(config.os || config.subdl || config.subsource || config.subsro || config.altyazidb);
-    config.hasSource = hasKey || config.gestdown || config.anisub;
+    config.hasSource = hasKey || config.gestdown || config.tsdb || config.anisub;
     config.auth = hasKey ? params.get('auth') : null;
     return config;
   }
@@ -205,7 +208,7 @@ export function createAddon(env = process.env) {
   function buildManifest(config, baseUrl) {
     const ui = config.ui || DEFAULT_UI;
     const langs = config.languages.map((code) => languageName(code, ui)).join(', ') || '—';
-    const sources = [config.os && 'OpenSubtitles', config.subdl && 'SubDL', config.subsource && 'SubSource', config.subsro && 'Subs.ro', config.altyazidb && 'AltyazıDB', config.gestdown && 'Gestdown', config.anisub && 'AniSub']
+    const sources = [config.os && 'OpenSubtitles', config.subdl && 'SubDL', config.subsource && 'SubSource', config.subsro && 'Subs.ro', config.altyazidb && 'AltyazıDB', config.gestdown && 'Gestdown', config.tsdb && 'TheSubtitleDB', config.anisub && 'AniSub']
       .filter(Boolean).join(', ') || '—';
     // Deneme adresleri ayrı bir eklenti olarak kurulur: kimliği ve adı farklıdır, asıl eklentiyle karışmaz;
     // hesap bağlanmadan kurulabilir ve Stremio'da "Ayarla" düğmesi çıkmaz.
@@ -538,6 +541,32 @@ export function createAddon(env = process.env) {
     }));
   }
 
+  // ---------- TheSubtitleDB (sitenin kendi API'si; anahtar gerektirmez) ----------
+
+  /**
+   * TheSubtitleDB indirmelerin kullanıcının kendi tarafından yapılmasını ister (IP başına saatte 150 indirme).
+   * Bu yüzden sunucu yalnızca arama yapar; sitenin verdiği dosya adresi dokunulmadan listeye eklenir ve oynatıcı
+   * dosyayı doğrudan oradan açar. AniSub'daki gibi bu altyazılar da çift dilli altyazıda, temizlikte ve
+   * "Altyazı ara ve indir" sayfasında kullanılmaz.
+   */
+  async function tsdbItems(config, ctx) {
+    const { imdbId, season, episode } = ctx;
+    const series = season !== undefined;
+    if (series && (!/^\d+$/.test(season) || !/^\d+$/.test(episode ?? ''))) return [];
+    const codes = new Map();
+    for (const lang of ctx.languages) {
+      const code = tsdbCode(lang);
+      if (code && !codes.has(code)) codes.set(code, lang);
+    }
+    const tsdb = new TsdbClient({ userAgent: CONTACT_AGENT });
+    const where = series ? `${imdbId}:${Number(season)}:${Number(episode)}` : imdbId;
+    // Site her istekte tek dil kabul eder. Sayı vermediği için altyazılar sitenin sırasıyla (en çok indirilen önce) kalır.
+    const lists = await Promise.all([...codes].map(([code, lang]) =>
+      cached(`tsdb:${where}:${code}`, SEARCH_TTL, () => tsdb.search({ imdbId, ...(series ? { season, episode } : {}), language: code }))
+        .then((found) => found.map((r) => ({ key: `tsdb-${r.id}`, source: 'tsdb', url: r.url, lang, release: r.release, hi: r.hi, downloads: 0 })))));
+    return lists.flat();
+  }
+
   // ---------- AniSub (AniSub'ın kendi Stremio eklentisi; anahtar gerektirmez, yalnızca Türkçe) ----------
 
   /**
@@ -547,7 +576,7 @@ export function createAddon(env = process.env) {
    */
   async function anisubItems(config, ctx) {
     if (!ctx.languages.includes('tr')) return [];
-    const found = await cached(`as:${ctx.type}:${ctx.titleId}`, SEARCH_TTL, () => anisubSubtitles(ctx.type, ctx.titleId, ANISUB_AGENT));
+    const found = await cached(`as:${ctx.type}:${ctx.titleId}`, SEARCH_TTL, () => anisubSubtitles(ctx.type, ctx.titleId, CONTACT_AGENT));
     // AniSub yalnızca Türkçe altyazı sunar ve dili "Turkish" diye yazar; dil yazılmamışsa da Türkçe sayılır.
     const turkish = (lang) => !lang || /^(?:turkish|türkçe)$/i.test(lang) || fromStremioLang(lang) === 'tr';
     // Çeviren fansub'ın adı etikette "Çeviri: …" olarak görünür; sürüm eşleştirmesinde de o ad kullanılır.
@@ -676,6 +705,7 @@ export function createAddon(env = process.env) {
       ['Subs.ro', config.subsro && subsroItems],
       ['AltyazıDB', config.altyazidb && altyazidbItems],
       ['Gestdown', config.gestdown && gestdownItems],
+      ['TheSubtitleDB', config.tsdb && tsdbItems],
       ['AniSub', config.anisub && anisubItems],
     ].filter(([, fn]) => fn);
     // Yavaş kalan kaynak beklenmez; zamanında yanıt verenlerle liste gösterilir.
@@ -750,6 +780,7 @@ export function createAddon(env = process.env) {
       subsro: t(ui, 'tagSubsro'),
       altyazidb: t(ui, 'tagAltyazidb'),
       gestdown: t(ui, 'tagGestdown'),
+      tsdb: t(ui, 'tagTsdb'),
       anisub: t(ui, 'tagAnisub'),
     };
     // Çift dilli altyazılar listenin başına eklenir; dil başına sınıra dahil değildir.
@@ -1157,6 +1188,7 @@ export function createAddon(env = process.env) {
       languages: Array.isArray(body?.languages) ? body.languages.join(',') : '',
       auth: typeof body?.auth === 'string' ? body.auth : '',
       gd: body?.gestdown === true ? '1' : '',
+      tdb: body?.tsdb === true ? '1' : '',
       as: body?.anisub === true ? '1' : '',
     }).toString());
     const languages = config.languages.length ? config.languages : ['en'];
@@ -1213,8 +1245,14 @@ export function createAddon(env = process.env) {
         const found = await Promise.all(codes.map((language) => gestdown.search({ showId, ...TEST_SERIES, language })));
         return { count: found.flat().length, series: true };
       }),
+      tsdb: config.tsdb && (async () => {
+        const tsdb = new TsdbClient({ userAgent: CONTACT_AGENT });
+        const codes = [...new Set(languages.map(tsdbCode).filter(Boolean))];
+        const found = await Promise.all(codes.map((language) => tsdb.search({ imdbId: TEST_TITLE, language })));
+        return { count: found.flat().length };
+      }),
       // AniSub'da herkesin bildiği bir örnek anime olmadığı için yalnızca eklentiye ulaşılıp ulaşılamadığına bakılır.
-      anisub: config.anisub && (async () => ({ reachable: await anisubReachable(ANISUB_AGENT) })),
+      anisub: config.anisub && (async () => ({ reachable: await anisubReachable(CONTACT_AGENT) })),
     };
 
     const outcome = async (source, run) => {
@@ -1223,7 +1261,7 @@ export function createAddon(env = process.env) {
       } catch (err) {
         if (err instanceof LoginError) return { source, status: 'login' };
         const badKey = err.rejected || ([401, 403].includes(err.status) && err.api !== false) || (source === 'subdl' && /auth|api.?key/i.test(err.message));
-        if (source !== 'os' && source !== 'anisub' && badKey) return { source, status: 'key' };
+        if (!['os', 'tsdb', 'anisub'].includes(source) && badKey) return { source, status: 'key' };
         console.error(`[test] ${source}: ${err.message}`);
         return { source, status: 'error' };
       }
@@ -1272,6 +1310,7 @@ export function createAddon(env = process.env) {
           clean: config.clean,
           ass: config.ass,
           gestdown: config.gestdown,
+          tsdb: config.tsdb,
           anisub: config.anisub,
           dual: config.dual,
           prefer: Object.keys(PREFER).find((code) => PREFER[code] === config.prefer) || null,

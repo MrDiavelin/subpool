@@ -107,6 +107,18 @@ export function subsroCode(code) {
   return SUBSRO_CODES[code] || null;
 }
 
+// TheSubtitleDB dilleri iki harfli kodla tanır; çoğu aynıdır. Kodu farklı olanlar ve orada ayrı bir dil olmayanlar (null):
+const TSDB_SPECIAL = {
+  'pt-br': 'pb', 'pt-pt': 'pt', 'zh-cn': 'zh', 'zh-tw': 'zt', 'az-az': 'az', sp: 'es', ea: 'es',
+  'zh-ca': null, 'az-zb': null, 'tm-td': null,
+};
+
+/** OpenSubtitles kodunu TheSubtitleDB'nin dil koduna çevirir; orada yoksa null. */
+export function tsdbCode(code) {
+  if (Object.hasOwn(TSDB_SPECIAL, code)) return TSDB_SPECIAL[code];
+  return BY_CODE.has(code) ? code : null;
+}
+
 /** Dilin adını verilen arayüz dilinde döndürür (ör. 'de' + 'tr' -> 'Almanca'). */
 export function languageName(code, uiLang) {
   const lang = BY_CODE.get(code);

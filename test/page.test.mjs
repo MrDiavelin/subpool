@@ -46,7 +46,7 @@ const det = [...html.matchAll(/data-det="([^"]+)"/g)].map((m) => m[1]).filter((i
 check('her "ayrıntı" düğmesinin hedefi sayfada var', !det.length, det);
 const langs = Object.keys(STRINGS);
 const gaps = langs.flatMap((lang) => Object.keys(STRINGS.tr).filter((k) => !(k in STRINGS[lang])).map((k) => `${lang}.${k}`));
-check('12 dilin hepsinde aynı çeviri anahtarları var', langs.length === 12 && !gaps.length, gaps);
+check('13 dilin hepsinde aynı çeviri anahtarları var', langs.length === 13 && !gaps.length, gaps);
 
 // Bilgi: sayfaya gönderilip hiçbir yerde kullanılmayan anahtarlar. Hata sayılmaz.
 const idle = Object.keys(STRINGS.tr).filter((k) => k in sent.tr && !keys.has(k) && !script.includes("'" + k + "'") && !script.includes('.' + k));

@@ -49,6 +49,7 @@ const DIALOG = {
   de: ['Was machst du hier?', 'Wer ist da?', 'Ich wollte nur reden.', 'Ich fahre morgen früh.'],
   it: ['Cosa ci fai qui?', "Chi c'è?", 'Volevo solo parlare.', 'Parto domani mattina.'],
   ar: ['ماذا تفعل هنا؟', 'من هناك؟', 'أردت فقط أن نتحدث.', 'سأغادر صباح الغد.'],
+  he: ['מה אתה עושה כאן?', 'מי שם?', 'רק רציתי לדבר.', 'אני עוזב מחר בבוקר.'],
   ru: ['Что ты здесь делаешь?', 'Кто там?', 'Я просто хотел поговорить.', 'Я уезжаю завтра утром.'],
   zh: ['你在这里做什么？', '谁在那儿？', '我只是想聊聊。', '我明天早上就走。'],
   ja: ['ここで何してるの？', '誰かいるのか？', '少し話したかっただけ。', '明日の朝に発つよ。'],
@@ -69,6 +70,7 @@ const SAMPLE = {
     subsource: 'The.Shawshank.Redemption.1994.2160p.UHD.BluRay',
     subsro: 'The Shawshank Redemption 1994 BluRay',
     altyazidb: 'Esaretin.Bedeli.1994.1080p.BluRay',
+    tsdb: 'The.Shawshank.Redemption.1994.720p.BRRip.x264',
     quota: 'Shawshank.Redemption.1994.1080p.WEB-DL.DD5.1',
     machine: 'Shawshank.Redemption.1994.720p (MT)',
     forced: 'The.Shawshank.Redemption.1994.1080p.BluRay.Forced',
@@ -83,6 +85,7 @@ const SAMPLE = {
     subsro: 'Breaking Bad - Sezonul 1 BluRay',
     altyazidb: 'Breaking.Bad.S01E01.1080p.BluRay',
     gestdown: 'Breaking.Bad.S01E01.720p.HDTV.x264',
+    tsdb: 'Breaking.Bad.S01E01.720p.BRRip.x264',
     quota: 'Breaking.Bad.S01E01.1080p.WEB-DL.DD5.1',
     machine: 'Breaking.Bad.S01E01.720p (MT)',
     forced: 'Breaking.Bad.S01E01.1080p.BluRay.Forced',
@@ -163,7 +166,7 @@ const CLEAN_SAMPLE = `
               <div><span class="f" data-i18n="after"></span><span data-i18n="who"></span></div>
             </div>`;
 
-export function configurePage({ baseUrl, selected, ui, auth, sources, max, match, fallback, machine, hi, forced, clean, ass, gestdown, anisub, dual, prefer, maxLanguages, misconfigured }) {
+export function configurePage({ baseUrl, selected, ui, auth, sources, max, match, fallback, machine, hi, forced, clean, ass, gestdown, tsdb, anisub, dual, prefer, maxLanguages, misconfigured }) {
   const langs = LANGUAGES.map(({ code, stremio, english, tag }) => ({ code, stremio, english, tag }));
   return `<!doctype html>
 <html lang="${ui || DEFAULT_UI}">
@@ -596,11 +599,11 @@ ${misconfigured ? '<p class="warn"><b>Server misconfigured:</b> OS_API_KEY / CON
               </div>
               <p class="status" id="osMsg" role="status"></p>
             </div>
-          </div>${keyPanel('subdl', 'SubDL', 'https://subdl.com/panel/api')}${keyPanel('subsource', 'SubSource', 'https://subsource.net/dashboard/profile')}${keyPanel('subsro', 'Subs.ro', 'https://subs.ro/api', 'subsroDown')}${keyPanel('altyazidb', 'AltyazıDB', 'https://altyazidb.com/')}
+          </div>${keyPanel('subdl', 'SubDL', 'https://subdl.com/panel/api')}${keyPanel('subsource', 'SubSource', 'https://subsource.net/dashboard/profile')}${keyPanel('subsro', 'Subs.ro', 'https://subs.ro/api')}${keyPanel('altyazidb', 'AltyazıDB', 'https://altyazidb.com/')}
         </div>
 
         <div class="group">
-          <div class="glabel" data-i18n="gFree"></div>${freePanel('gestdown', 'Gestdown')}${freePanel('anisub', 'AniSub')}
+          <div class="glabel" data-i18n="gFree"></div>${freePanel('gestdown', 'Gestdown')}${freePanel('tsdb', 'TheSubtitleDB')}${freePanel('anisub', 'AniSub')}
         </div>
 
         <div class="testbox">
@@ -693,6 +696,7 @@ ${misconfigured ? '<p class="warn"><b>Server misconfigured:</b> OS_API_KEY / CON
           <div><dt class="free"><span data-i18n="tagSubdl"></span> / <span data-i18n="tagSubsource"></span></dt><dd data-i18n="howOther"></dd></div>
           <div id="subsroLegend"><dt class="free" data-i18n="tagSubsro"></dt><dd data-i18n="howSubsro"></dd></div>
           <div><dt class="free" data-i18n="tagGestdown"></dt><dd data-i18n="howGestdown"></dd></div>
+          <div><dt class="free" data-i18n="tagTsdb"></dt><dd data-i18n="howTsdb"></dd></div>
           <div id="anisubLegend"><dt class="free" data-i18n="tagAnisub"></dt><dd data-i18n="howAnisub"></dd></div>
           <div><dt class="free" data-i18n="tagDual"></dt><dd data-i18n="howDual"></dd></div>
           <div><dt>HI</dt><dd data-i18n="howHi"></dd></div>
@@ -760,6 +764,8 @@ ${misconfigured ? '<p class="warn"><b>Server misconfigured:</b> OS_API_KEY / CON
 <script>
 const STRINGS = ${toJson(PAGE_STRINGS)};
 const UI_LANGUAGES = ${toJson(UI_LANGUAGES)};
+// Sağdan sola yazılan arayüz dilleri.
+const RTL_UI = ['ar', 'he'];
 const LANGS = ${toJson(langs)};
 const BASE_URL = ${toJson(baseUrl)};
 const MAX = ${maxLanguages};
@@ -782,6 +788,8 @@ let clean = ${toJson(!!clean)};
 let ass = ${toJson(!!ass)};
 // Gestdown anahtar istemeyen bir kaynaktır; şifreli parçada değil, adreste bir ayar olarak durur.
 let gestdown = ${toJson(!!gestdown)};
+// TheSubtitleDB de anahtar istemez; adreste "tdb=1" olarak durur.
+let tsdb = ${toJson(!!tsdb)};
 // AniSub da anahtar istemez; adreste "as=1" olarak durur. Yalnızca Türkçe altyazı verdiği için ayarı yalnızca site
 // Türkçeyken görünür; başka dilde gizlenir ve adrese yazılmaz (Türkçeye dönülünce seçim geri gelir).
 let anisub = ${toJson(!!anisub)};
@@ -790,11 +798,11 @@ const anisubOn = () => anisub && anisubShown();
 let dual = ${toJson(!!dual)};
 // Listede öne alınacak kaynak ("pri"); boşsa hiçbiri.
 let prefer = ${toJson(prefer || '')};
-const PREFER_NAMES = { os: 'OpenSubtitles', sd: 'SubDL', ss: 'SubSource', sro: 'Subs.ro', adb: 'AltyazıDB', gd: 'Gestdown', as: 'AniSub' };
+const PREFER_NAMES = { os: 'OpenSubtitles', sd: 'SubDL', ss: 'SubSource', sro: 'Subs.ro', adb: 'AltyazıDB', gd: 'Gestdown', tdb: 'TheSubtitleDB', as: 'AniSub' };
 const LIMITS = [5, 10, 15, 20];
 const HI_MODES = { show: 'hiShow', last: 'hiLast', hide: 'hiHide' };
 const FORCED_MODES = { last: 'forcedLast', first: 'forcedFirst', hide: 'forcedHide' };
-const SOURCE_NAMES = { os: 'OpenSubtitles', subdl: 'SubDL', subsource: 'SubSource', subsro: 'Subs.ro', altyazidb: 'AltyazıDB', gestdown: 'Gestdown', anisub: 'AniSub' };
+const SOURCE_NAMES = { os: 'OpenSubtitles', subdl: 'SubDL', subsource: 'SubSource', subsro: 'Subs.ro', altyazidb: 'AltyazıDB', gestdown: 'Gestdown', tsdb: 'TheSubtitleDB', anisub: 'AniSub' };
 const KEY_SOURCES = ['os', 'subdl', 'subsource', 'subsro', 'altyazidb'];
 // Subs.ro'nun ayırdığı diller; önizlemede yalnızca bunlarda satırı gösterilir.
 const SUBSRO_LANGUAGES = ['ro', 'en', 'it', 'fr', 'de', 'hu', 'el', 'pt-pt', 'pt-br', 'es', 'sp', 'ea'];
@@ -847,6 +855,7 @@ if (!auth && !selected.length) {
     if (saved?.clean === true) clean = true;
     if (saved?.ass === true) ass = true;
     if (saved?.gestdown === true) gestdown = true;
+    if (saved?.tsdb === true) tsdb = true;
     if (saved?.anisub === true) anisub = true;
     if (saved?.dual === true) dual = true;
     if (PREFER_NAMES[saved?.prefer]) prefer = saved.prefer;
@@ -954,7 +963,7 @@ function setMsg(name, key) {
   $(name + 'Msg').className = 'status' + (key && key !== 'verifying' ? ' error' : '');
 }
 
-const hasSource = () => !!auth || gestdown || anisubOn();
+const hasSource = () => !!auth || gestdown || tsdb || anisubOn();
 // AltyazıDB yalnızca Türkçe ve İngilizce altyazı verir; bu diller seçili değilse bölümü gösterilmez.
 const adbShown = () => !!sources.altyazidb || ui === 'tr' || ui === 'en';
 // Subs.ro bir Romen sitesidir; bölümü yalnızca site Romenceyken gösterilir. Anahtarı bağlı olan her dilde görür (bağlantıyı kesebilsin diye).
@@ -964,12 +973,22 @@ const sourceList = () => [
   ...(sroShown() ? [['Subs.ro', !!sources.subsro]] : []),
   ...(adbShown() ? [['AltyazıDB', !!sources.altyazidb]] : []),
   ['Gestdown', gestdown],
+  ['TheSubtitleDB', tsdb],
   ...(anisubShown() ? [['AniSub', anisub]] : []),
 ];
 
+/** "Altyazı ara ve indir" açıklaması; oynatıcının doğrudan kaynağından açtığı altyazıların burada neden görünmediğini de yazar. */
+function renderFindIntro() {
+  const intro = split(tr('findIntro', { quota: tr('tagQuota'), official: tr('tagOfficial') }) +
+    (tsdb ? ' ' + tr('findTsdb', { tsdb: tr('tagTsdb') }) : '') +
+    (anisubShown() ? ' ' + tr('findAnisub', { anisub: tr('tagAnisub') }) : ''));
+  $('findSum').textContent = intro[0];
+  $('findRest').textContent = intro[1];
+}
+
 function renderStatic() {
   document.documentElement.lang = ui;
-  document.documentElement.dir = ui === 'ar' ? 'rtl' : 'ltr';
+  document.documentElement.dir = RTL_UI.includes(ui) ? 'rtl' : 'ltr';
   for (const node of document.querySelectorAll('[data-i18n]')) {
     const text = tr(node.dataset.i18n);
     const part = node.dataset.part;
@@ -987,10 +1006,7 @@ function renderStatic() {
   $('search').placeholder = tr('searchPlaceholder');
   $('findQuery').placeholder = tr('findPlaceholder');
   $('optUp').textContent = tr('optional').toLocaleUpperCase(ui);
-  const intro = split(tr('findIntro', { quota: tr('tagQuota'), official: tr('tagOfficial') }) +
-    (anisubShown() ? ' ' + tr('findAnisub', { anisub: tr('tagAnisub') }) : ''));
-  $('findSum').textContent = intro[0];
-  $('findRest').textContent = intro[1];
+  renderFindIntro();
   const limits = [...new Set([...LIMITS, max || LIMITS[0]])].sort((a, b) => a - b);
   $('limit').replaceChildren(new Option(tr('limitNone'), ''), ...limits.map((n) => new Option(String(n), String(n))));
   $('limit').value = max ? String(max) : '';
@@ -1007,6 +1023,7 @@ function renderStatic() {
   $('pri').replaceChildren(new Option(tr('priNone'), ''), ...priCodes.map((code) => new Option(PREFER_NAMES[code], code)));
   $('pri').value = priCodes.includes(prefer) ? prefer : '';
   $('gestdown').checked = gestdown;
+  $('tsdb').checked = tsdb;
   $('anisub').checked = anisub;
   $('anisubPanel').hidden = !anisubShown();
   $('anisubLegend').hidden = !anisubShown();
@@ -1022,7 +1039,7 @@ function renderHero() {
   const pill = make('span', 'pill');
   const text = make('span', '', STRINGS[code].hero);
   text.lang = code;
-  text.dir = code === 'ar' ? 'rtl' : 'ltr';
+  text.dir = RTL_UI.includes(code) ? 'rtl' : 'ltr';
   pill.append(make('span', 'code', code.toUpperCase()), text);
   $('heroCap').replaceChildren(pill);
 }
@@ -1049,7 +1066,7 @@ function renderView() {
     $('stepBtn' + i).setAttribute('aria-current', i === step ? 'step' : 'false');
     $('stepNum' + i).textContent = tr('scene') + ' 0' + (i + 1) + (done[i] && i !== step ? ' ✓' : '');
   });
-  const rtl = ui === 'ar';
+  const rtl = RTL_UI.includes(ui);
   $('back').hidden = step === 0;
   $('back').textContent = (rtl ? '→ ' : '← ') + tr('back');
   $('next').hidden = step === STEPS.length - 1;
@@ -1127,7 +1144,7 @@ function preview(pri) {
   const freeRows = (l) => {
     const rows = [];
     const add = (src, key, rel, more = {}) => rows.push({
-      src, tag: tr(key) + (more.forced ? ' · ' + tr('forced') : '') + (more.hi ? ' · HI' : ''), rel, hi: !!more.hi, forced: !!more.forced, own: !more.official && !more.forced,
+      src, tag: tr(key) + (more.forced ? ' · ' + tr('forced') : '') + (more.hi ? ' · HI' : ''), rel, hi: !!more.hi, forced: !!more.forced, own: !more.official && !more.forced && !more.direct,
     });
     if (sources.os) {
       add('os', 'tagOfficial', sample.official, { official: true });
@@ -1142,6 +1159,8 @@ function preview(pri) {
     if (sources.subsro && SUBSRO_LANGUAGES.includes(l.code)) add('sro', 'tagSubsro', sample.subsro);
     if (sources.altyazidb && (l.code === 'tr' || l.code === 'en')) add('adb', 'tagAltyazidb', sample.altyazidb);
     if (gestdown) add('gd', 'tagGestdown', sample.gestdown);
+    // Oynatıcı bu altyazıyı doğrudan TheSubtitleDB'den açar; çift dilli altyazıya katılmaz.
+    if (tsdb) add('tdb', 'tagTsdb', sample.tsdb, { direct: true });
     let out = rows.filter((r) => (hi !== 'hide' || !r.hi) && (forced !== 'hide' || !r.forced));
     if (pri) out = [...out.filter((r) => r.src === pri), ...out.filter((r) => r.src !== pri)];
     if (hi === 'last') out = [...out.filter((r) => !r.hi), ...out.filter((r) => r.hi)];
@@ -1241,6 +1260,7 @@ function render() {
   $('subsroPanel').hidden = !sroShown();
   $('subsroLegend').hidden = !sroShown();
   $('gestdownPanel').className = 'fsrc' + (gestdown ? ' on' : '');
+  $('tsdbPanel').className = 'fsrc' + (tsdb ? ' on' : '');
   $('anisubPanel').className = 'fsrc' + (anisub ? ' on' : '');
 
   const list = $('selected');
@@ -1286,7 +1306,7 @@ function render() {
   // Varsayılan liste ayarları adrese yazılmaz; eski adresler de aynen çalışır.
   const options = (max ? '&max=' + max : '') + (match ? '' : '&match=0') + (fallback ? '&fb=1' : '') +
     (hideMachine ? '&mt=0' : '') + (hi !== 'show' ? '&hi=' + hi : '') + (forced !== 'last' ? '&fo=' + forced : '') + (clean ? '&clean=1' : '') + (ass ? '&ass=1' : '') +
-    (gestdown ? '&gd=1' : '') + (anisubOn() ? '&as=1' : '') + (dual ? '&dual=1' : '') + (pri ? '&pri=' + pri : '');
+    (gestdown ? '&gd=1' : '') + (tsdb ? '&tdb=1' : '') + (anisubOn() ? '&as=1' : '') + (dual ? '&dual=1' : '') + (pri ? '&pri=' + pri : '');
   const manifestUrl = BASE_URL + '/languages=' + selected.join(',') + '&ui=' + ui + options + (auth ? '&auth=' + auth : '') + '/manifest.json';
   const install = $('install');
   install.href = ready ? manifestUrl.replace(/^https?:\\/\\//, 'stremio://') : '#';
@@ -1306,7 +1326,7 @@ function render() {
   segment('limit', [['', tr('limitNone')], ...limits.map((n) => [String(n), String(n)])], onLimit);
   segment('hi', Object.entries(HI_MODES).map(([mode, key]) => [mode, tr(key)]), onHi);
   segment('forced', Object.entries(FORCED_MODES).map(([mode, key]) => [mode, tr(key)]), onForced);
-  const usable = { os: sources.os, sd: sources.subdl, ss: sources.subsource, sro: sources.subsro, adb: sources.altyazidb, gd: gestdown, as: anisubOn() };
+  const usable = { os: sources.os, sd: sources.subdl, ss: sources.subsource, sro: sources.subsro, adb: sources.altyazidb, gd: gestdown, tdb: tsdb, as: anisubOn() };
   segment('pri', [['', tr('priNone')], ...Object.keys(PREFER_NAMES).filter((code) => usable[code] || code === pri).map((code) => [code, PREFER_NAMES[code]])], onPri);
 
   // Yükleme adımındaki özet ve yandaki kaynak sayacı.
@@ -1336,7 +1356,7 @@ function render() {
   addonBase = base;
   renderFind();
   renderView();
-  storageSet('saved', JSON.stringify({ auth, sources, selected, max, match, fallback, machine: !hideMachine, hi, forced, clean, ass, gestdown, anisub, dual, prefer }));
+  storageSet('saved', JSON.stringify({ auth, sources, selected, max, match, fallback, machine: !hideMachine, hi, forced, clean, ass, gestdown, tsdb, anisub, dual, prefer }));
 }
 
 function renderFind() {
@@ -1599,7 +1619,7 @@ $('forget').addEventListener('click', () => {
 
 // Bağlı kaynaklarda örnek bir film aranır; yalnızca arama yapılır, indirme hakkı harcanmaz.
 $('test').addEventListener('click', async () => {
-  const asked = auth + '|' + gestdown + '|' + anisubOn();
+  const asked = auth + '|' + gestdown + '|' + tsdb + '|' + anisubOn();
   tested = 'running';
   render();
   let outcome = 'serverError';
@@ -1607,14 +1627,14 @@ $('test').addEventListener('click', async () => {
     const res = await fetch(BASE_URL + '/api/test', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ auth, languages: selected, gestdown, anisub: anisubOn() }),
+      body: JSON.stringify({ auth, languages: selected, gestdown, tsdb, anisub: anisubOn() }),
     });
     const data = await res.json().catch(() => ({}));
     if (res.ok && Array.isArray(data.results)) outcome = data.results;
     else if (res.status === 429) outcome = 'tooMany';
   } catch {}
   // Deneme sürerken kaynaklar değiştiyse eski sonuç gösterilmez.
-  tested = auth + '|' + gestdown + '|' + anisubOn() === asked ? outcome : null;
+  tested = auth + '|' + gestdown + '|' + tsdb + '|' + anisubOn() === asked ? outcome : null;
   render();
 });
 
@@ -1748,6 +1768,12 @@ $('ass').addEventListener('change', () => {
 $('gestdown').addEventListener('change', () => {
   gestdown = $('gestdown').checked;
   tested = null;
+  render();
+});
+$('tsdb').addEventListener('change', () => {
+  tsdb = $('tsdb').checked;
+  tested = null;
+  renderFindIntro();
   render();
 });
 $('anisub').addEventListener('change', () => {

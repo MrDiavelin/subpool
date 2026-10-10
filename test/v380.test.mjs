@@ -246,14 +246,14 @@ res = await a.post('/api/connect', { os: { username: 'reddedilen-kullanici', pas
 check('giriş: OpenSubtitles 403 → "şifre hatası" denmez, ayrı mesaj', res.status === 502 && res.data.error === 'os_refused', JSON.stringify(res));
 res = await a.post('/api/connect', { os: { username: '  sahte-kullanici  ', password: ' Özel "şifre" \\ ~ ' } }, '10.0.0.3');
 check('giriş: doğru bilgilerle bağlanır', res.status === 200 && res.data.sources?.os === 'sahte-kullanici', JSON.stringify(res.data.sources));
-check('giriş metni: 12 dilde .org/.com ayrımı ve aktarma adresi', Object.values(STRINGS).every((s) => s.badLogin.includes('opensubtitles.org') && s.badLogin.includes('opensubtitles.com/en/users/import') && s.osRefused));
+check('giriş metni: 13 dilde .org/.com ayrımı ve aktarma adresi', Object.values(STRINGS).every((s) => s.badLogin.includes('opensubtitles.org') && s.badLogin.includes('opensubtitles.com/en/users/import') && s.osRefused));
 
 // ---------- Ayar sayfası ----------
 const html = await a.text(`/${seg('&fb=1&mt=0&hi=last&clean=1&max=10')}/configure`);
 const scripts = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].map((m) => m[1]).filter((s) => s.trim());
 check('sayfa: yeni denetimler var', ['id="fallback"', 'id="machine"', 'id="hi"', 'id="clean"', 'id="test"', 'id="testResult"', 'https://github.com/MrDiavelin/subpool'].every((s) => html.includes(s)));
 const keys = Object.keys(STRINGS.tr);
-check('metinler: 12 dilde aynı anahtarlar, boş metin yok', Object.keys(STRINGS).length === 12 && Object.values(STRINGS).every((s) => JSON.stringify(Object.keys(s)) === JSON.stringify(keys) && Object.values(s).every((v) => (Array.isArray(v) ? v.length : v))));
+check('metinler: 13 dilde aynı anahtarlar, boş metin yok', Object.keys(STRINGS).length === 13 && Object.values(STRINGS).every((s) => JSON.stringify(Object.keys(s)) === JSON.stringify(keys) && Object.values(s).every((v) => (Array.isArray(v) ? v.length : v))));
 check('metinler: yer tutucular her dilde aynı', Object.values(STRINGS).every((s) => keys.every((k) => JSON.stringify(String(s[k]).match(/\{\w+\}/g)?.sort()) === JSON.stringify(String(STRINGS.tr[k]).match(/\{\w+\}/g)?.sort()))));
 check('sayfa: "açık kaynak" denmez', !/açık kaynak|open[- ]source/i.test(html));
 

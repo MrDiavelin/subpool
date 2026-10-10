@@ -364,9 +364,9 @@ const html = await a.text('/languages=tr,en&ui=tr&gd=1&dual=1/configure');
 check('sayfa: yeni denetimler var', ['id="gestdownPanel"', 'id="gestdown"', 'id="dual"', 'data-i18n="gestdownIntro"', 'data-i18n="dualHint"', 'data-i18n="howGestdown"', 'data-i18n="howDual"'].every((s) => html.includes(s)));
 check('sayfa: sunucuya özel metin (dualMissing) sayfaya gömülmez', !html.includes('dualMissing') && !html.includes(NOTICE));
 const keys = Object.keys(STRINGS.tr);
-check('metinler: 12 dilde aynı anahtarlar, boş metin yok', Object.keys(STRINGS).length === 12 && Object.values(STRINGS).every((s) => JSON.stringify(Object.keys(s)) === JSON.stringify(keys) && Object.values(s).every((v) => (Array.isArray(v) ? v.length : v))));
+check('metinler: 13 dilde aynı anahtarlar, boş metin yok', Object.keys(STRINGS).length === 13 && Object.values(STRINGS).every((s) => JSON.stringify(Object.keys(s)) === JSON.stringify(keys) && Object.values(s).every((v) => (Array.isArray(v) ? v.length : v))));
 check('metinler: yer tutucular her dilde aynı', Object.values(STRINGS).every((s) => keys.every((k) => JSON.stringify(String(s[k]).match(/\{\w+\}/g)?.sort()) === JSON.stringify(String(STRINGS.tr[k]).match(/\{\w+\}/g)?.sort()))));
-check('metinler: 12 dilde Gestdown etiketi ve örnek dizi adı', Object.values(STRINGS).every((s) => s.tagGestdown.startsWith('[Gestdown] ✓ ') && s.tagDual.startsWith('[') && s.testOkSeries.includes('Breaking Bad') && s.testEmptySeries.includes('Breaking Bad') && s.gestdownIntro.includes('api.gestdown.info')));
+check('metinler: 13 dilde Gestdown etiketi ve örnek dizi adı', Object.values(STRINGS).every((s) => s.tagGestdown.startsWith('[Gestdown] ✓ ') && s.tagDual.startsWith('[') && s.testOkSeries.includes('Breaking Bad') && s.testEmptySeries.includes('Breaking Bad') && s.gestdownIntro.includes('api.gestdown.info')));
 check('sayfa: "açık kaynak" denmez', !/açık kaynak|open[- ]source/i.test(html));
 let page;
 try {

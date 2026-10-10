@@ -358,7 +358,7 @@ function runPage(pageHtml, saved = null) {
 
 // ---------- Ayar sayfası ----------
 const keys = Object.keys(STRINGS.tr);
-check('metinler: 12 dilde aynı anahtarlar, boş metin yok', Object.keys(STRINGS).length === 12 && Object.values(STRINGS).every((s) => JSON.stringify(Object.keys(s)) === JSON.stringify(keys) && Object.values(s).every((v) => (Array.isArray(v) ? v.length : v))));
+check('metinler: 13 dilde aynı anahtarlar, boş metin yok', Object.keys(STRINGS).length === 13 && Object.values(STRINGS).every((s) => JSON.stringify(Object.keys(s)) === JSON.stringify(keys) && Object.values(s).every((v) => (Array.isArray(v) ? v.length : v))));
 check('metinler: yer tutucular her dilde aynı', Object.values(STRINGS).every((s) => keys.every((k) => JSON.stringify(String(s[k]).match(/\{\w+\}/g)?.sort()) === JSON.stringify(String(STRINGS.tr[k]).match(/\{\w+\}/g)?.sort()))));
 check('metinler: kalan hak metni her dilde sayıyı taşır', Object.values(STRINGS).every((s) => s.quotaLeft.includes('{n}')));
 let html = await a.text(`/${seg('&pri=adb')}/configure`);
@@ -366,7 +366,7 @@ check('sayfa: yeni denetimler var', ['id="pri"', 'data-i18n="priLabel"', 'data-i
 check('sayfa: kalan hak metni önizleme için sayfada, sunucuya özel metinler değil', html.includes('quotaLeft') && !html.includes('fansubBy') && !html.includes('quotaHint') && !html.includes(STRINGS.tr.quotaHint));
 let page = runPage(html);
 const link = (p) => p.$('url').textContent;
-check('sayfa: öne alma seçenekleri ve adresteki değer', page.$('pri').children.map((o) => o.value).join() === ',os,sd,ss,sro,adb,gd,as' && page.$('pri').children[0].text === 'Yok' && page.$('pri').children[5].text === 'AltyazıDB' && page.$('pri').value === 'adb', page.$('pri').children.map((o) => o.text).join());
+check('sayfa: öne alma seçenekleri ve adresteki değer', page.$('pri').children.map((o) => o.value).join() === ',os,sd,ss,sro,adb,gd,tdb,as' && page.$('pri').children[0].text === 'Yok' && page.$('pri').children[5].text === 'AltyazıDB' && page.$('pri').value === 'adb', page.$('pri').children.map((o) => o.text).join());
 check('sayfa: öne alma adreste şifreli parçadan önce yazılır', link(page) === `${a.base}/languages=tr,en&ui=tr&pri=adb&auth=${auth}/manifest.json`, link(page).slice(0, 120));
 page.$('pri').value = 'gd'; page.$('pri').fire('change');
 check('sayfa: seçim değişince adres değişir ve hatırlanır', link(page).includes('&pri=gd&auth=') && JSON.parse(page.storage.get('saved')).prefer === 'gd');

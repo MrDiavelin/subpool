@@ -475,7 +475,7 @@ check('istekler: Subs.ro\'ya giden her istek bir anahtar taşıdı', sroCalls.ev
 
 // ---------- Metinler ----------
 const keys = Object.keys(T);
-check('metinler: 12 dilde aynı anahtarlar, boş metin yok', Object.keys(STRINGS).length === 12 && Object.values(STRINGS).every((s) => JSON.stringify(Object.keys(s)) === JSON.stringify(keys) && Object.values(s).every((v) => (Array.isArray(v) ? v.length && v.every(Boolean) : v))));
+check('metinler: 13 dilde aynı anahtarlar, boş metin yok', Object.keys(STRINGS).length === 13 && Object.values(STRINGS).every((s) => JSON.stringify(Object.keys(s)) === JSON.stringify(keys) && Object.values(s).every((v) => (Array.isArray(v) ? v.length && v.every(Boolean) : v))));
 check('metinler: Subs.ro etiketi her dilde adı taşır, sınır mesajı üç satır', Object.values(STRINGS).every((s) => s.tagSubsro.startsWith('[Subs.ro] ✓ ') && Array.isArray(s.subsroLimit) && s.subsroLimit.length === 3 && s.subsroIntro.includes('subs.ro') && s.howSubsro.includes('OpenSubtitles')));
 check('metinler: forced ayarının beş metni her dilde var', Object.values(STRINGS).every((s) => ['forcedLabel', 'forcedLast', 'forcedFirst', 'forcedHide', 'forcedHint'].every((k) => typeof s[k] === 'string' && s[k])));
 check('metinler: tanıtım cümlelerinde Subs.ro yalnızca Romencede geçer', Object.entries(STRINGS).every(([code, s]) => ['tagline', 'manifestDesc', 'dualHint'].every((k) => s[k].includes('Subs.ro') === (code === 'ro'))), Object.entries(STRINGS).filter(([code, s]) => !['tagline', 'manifestDesc', 'dualHint'].every((k) => s[k].includes('Subs.ro') === (code === 'ro'))).map(([code]) => code).join());
@@ -486,6 +486,7 @@ check('metinler: Subs.ro için "ücretsiz" iddiası kartta yok (yalnızca sorgu 
 // ---------- Ayar sayfası ----------
 function runPage(pageHtml, saved = null) {
   const elements = new Map();
+  const root = {};
   const element = (id) => {
     const handlers = {};
     const el = {
@@ -505,7 +506,7 @@ function runPage(pageHtml, saved = null) {
   const $ = (id) => elements.get(id) || (elements.set(id, element(id)), elements.get(id));
   const storage = new Map(saved ? [['saved', JSON.stringify(saved)]] : []);
   const context = vm.createContext({
-    document: { getElementById: $, querySelectorAll: () => [], createElement: () => element(null), documentElement: {}, body: { append() {} } },
+    document: { getElementById: $, querySelectorAll: () => [], createElement: () => element(null), documentElement: root, body: { append() {} } },
     localStorage: { getItem: (k) => storage.get(k) ?? null, setItem: (k, v) => storage.set(k, v) },
     navigator: { languages: ['tr-TR'], clipboard: { writeText: async () => {} } },
     Option: function Option(label, value) { this.text = label; this.value = value; },
@@ -513,13 +514,12 @@ function runPage(pageHtml, saved = null) {
     Intl, setTimeout, setInterval: () => 0, clearInterval() {}, performance: { now: () => 0 }, location: { hash: '', pathname: '/configure', search: '' }, history: { replaceState() {} }, addEventListener() {}, matchMedia: () => ({ matches: false }), console, JSON, Object, Array, Map, Set, String, Number, Boolean, Promise, URL, Blob,
   });
   for (const code of [...pageHtml.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].map((m) => m[1])) vm.runInContext(code, context);
-  return { $, storage };
+  return { $, storage, root };
 }
 const link = (p) => p.$('url').textContent;
 const html = await text('/configure');
 check('sayfa: Subs.ro kartı, anahtar kutusu, anahtar alma bağlantısı ve açıklama satırı var', ['id="subsroPanel"', 'id="subsroKey"', 'id="subsroForm"', 'data-remove="subsro"', 'href="https://subs.ro/api"', 'data-i18n="subsroIntro"', 'data-i18n="tagSubsro"', 'data-i18n="howSubsro"'].every((s) => html.includes(s)), ['id="subsroPanel"', 'id="subsroKey"', 'id="subsroForm"', 'data-remove="subsro"', 'href="https://subs.ro/api"', 'data-i18n="subsroIntro"', 'data-i18n="tagSubsro"', 'data-i18n="howSubsro"'].filter((s) => !html.includes(s)).join());
-check('sayfa: Subs.ro kartında "şu an çalışmıyor" uyarısı var, başka kartta yok', html.includes('id="subsroDown" data-i18n="subsroDown"') && (html.match(/class="more down"/g) || []).length === 1);
-check('metinler: uyarı her dilde siteyi adıyla anar ve Türkçesi yöneticilere yazıldığını söyler', Object.values(STRINGS).every((s) => s.subsroDown.includes('subs.ro')) && /Şu an çalışmıyor/.test(T.subsroDown) && /yöneticilerine yazıldı/.test(T.subsroDown));
+check('sayfa: hiçbir kartta "şu an çalışmıyor" uyarısı yok (Subs.ro yeniden çalışıyor)', !html.includes('class="more down"') && Object.values(STRINGS).every((s) => !('subsroDown' in s)));
 check('sayfa: forced seçimi var, sunucu mesajı sayfaya gömülmez', html.includes('id="forced"') && html.includes('data-i18n="forcedHint"') && !html.includes(T.subsroLimit[0]));
 
 let page = runPage(await text(`/languages=ro,en&ui=tr&auth=${auth}/configure`));
@@ -549,6 +549,13 @@ check('sayfa: hatırlanan forced ayarı yüklenir', page.$('forced').value === '
 page = runPage(await text('/configure'), { auth: null, sources: { os: null }, selected: ['tr'], max: null, match: true, gestdown: true, forced: 'evet' });
 check('sayfa: bozuk hatırlanan forced değeri yok sayılır', page.$('forced').value === 'last' && link(page) === `${BASE}/languages=tr&ui=tr&gd=1/manifest.json`, link(page));
 
+// İbranice ve Arapça sağdan sola yazılır; sayfanın yönü ve ileri/geri okları buna göre döner.
+check('sayfa: dil listesinde İbranice var', html.includes('"he":"עברית"') && STRINGS.he.uiLanguage === 'שפת הדף');
+for (const [code, dir] of [['he', 'rtl'], ['ar', 'rtl'], ['en', 'ltr'], ['ro', 'ltr']]) {
+  const p = runPage(await text(`/languages=en&ui=${code}/configure`));
+  check(`sayfa: ${code} sayfanın yönü ${dir}`, p.root.dir === dir && p.root.lang === code && p.$('next').textContent.endsWith(dir === 'rtl' ? ' ←' : ' →'), `${p.root.dir} ${p.root.lang} ${p.$('next').textContent}`);
+}
+check('İbranice: manifest açıklaması İbranice', (await get(`/languages=he,en&ui=he&auth=${auth}/manifest.json`)).description.startsWith('אוסף כתוביות מ-OpenSubtitles'));
 // Subs.ro bir Romen sitesi: kartı yalnızca site Romenceyken görünür; anahtarı bağlı olan her dilde görür.
 check('sayfa: dil listesinde Romence var', html.includes('"ro":"Română"') && STRINGS.ro.uiLanguage === 'Limba paginii', '');
 page = runPage(await text('/languages=ro&ui=ro/configure'));

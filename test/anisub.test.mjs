@@ -157,7 +157,7 @@ check('deneme: anisub yalnızca true ise açılır', !res.data.results?.some((r)
 
 // ---------- Metinler ----------
 const keys = Object.keys(STRINGS.tr);
-check('metinler: 12 dilde aynı anahtarlar, boş metin yok', Object.keys(STRINGS).length === 12 && Object.values(STRINGS).every((s) => JSON.stringify(Object.keys(s)) === JSON.stringify(keys) && Object.values(s).every((v) => (Array.isArray(v) ? v.length : v))));
+check('metinler: 13 dilde aynı anahtarlar, boş metin yok', Object.keys(STRINGS).length === 13 && Object.values(STRINGS).every((s) => JSON.stringify(Object.keys(s)) === JSON.stringify(keys) && Object.values(s).every((v) => (Array.isArray(v) ? v.length : v))));
 check('metinler: yer tutucular her dilde aynı', Object.values(STRINGS).every((s) => keys.every((k) => JSON.stringify(String(s[k]).match(/\{\w+\}/g)?.sort()) === JSON.stringify(String(STRINGS.tr[k]).match(/\{\w+\}/g)?.sort()))));
 check('metinler: AniSub etiketi her dilde "AniSub" adını taşır', Object.values(STRINGS).every((s) => s.tagAnisub.includes('[AniSub]')));
 
@@ -201,7 +201,7 @@ check('sayfa: iletişim satırı (X ve Discord)', html.includes('<a href="https:
 let page = runPage(html);
 check('sayfa: başta kapalı, adres hazır değil, deneme kapalı', page.$('anisub').checked === false && link(page) === '—' && page.$('test').disabled === true, link(page));
 check('sayfa: site Türkçeyken AniSub bölümü ve açıklama satırı görünür', page.$('anisubPanel').hidden === false && page.$('anisubLegend').hidden === false);
-check('sayfa: öne alma listesinde AniSub var', page.$('pri').children.map((o) => o.value).join() === ',os,sd,ss,sro,adb,gd,as' && page.$('pri').children.at(-1).text === 'AniSub');
+check('sayfa: öne alma listesinde AniSub var', page.$('pri').children.map((o) => o.value).join() === ',os,sd,ss,sro,adb,gd,tdb,as' && page.$('pri').children.at(-1).text === 'AniSub');
 check('sayfa: arama bölümü açıklamasında AniSub notu', (page.$('findSum').textContent + ' ' + page.$('findRest').textContent).endsWith(STRINGS.tr.findAnisub.replace('{anisub}', STRINGS.tr.tagAnisub)), (page.$('findSum').textContent + ' ' + page.$('findRest').textContent));
 page.$('anisub').checked = true; page.$('anisub').fire('change');
 check('sayfa: AniSub tek başına yeterli, adrese as=1 eklenir', link(page) === `${BASE}/languages=tr&ui=tr&as=1/manifest.json` && page.$('test').disabled === false, link(page));
@@ -212,7 +212,7 @@ page.$('pri').value = 'as'; page.$('pri').fire('change');
 page.$('ui').value = 'en'; page.$('ui').fire('change');
 check('sayfa: site İngilizceye geçince AniSub bölümü, açıklama satırı ve arama notu gizlenir', page.$('anisubPanel').hidden === true && page.$('anisubLegend').hidden === true && !(page.$('findSum').textContent + ' ' + page.$('findRest').textContent).includes(STRINGS.en.findAnisub.replace('{anisub}', STRINGS.en.tagAnisub)), (page.$('findSum').textContent + ' ' + page.$('findRest').textContent));
 check('sayfa: gizliyken AniSub (ve onu öne alma) adrese yazılmaz; tek kaynak oysa adres yok, deneme sonucu silinir', link(page) === '—' && page.$('test').disabled === true && page.$('testResult').children.length === 0, link(page));
-check('sayfa: gizliyken öne alma listesinde AniSub yok', page.$('pri').children.map((o) => o.value).join() === ',os,sd,ss,sro,adb,gd' && page.$('pri').value === '');
+check('sayfa: gizliyken öne alma listesinde AniSub yok', page.$('pri').children.map((o) => o.value).join() === ',os,sd,ss,sro,adb,gd,tdb' && page.$('pri').value === '');
 page.$('ui').value = 'tr'; page.$('ui').fire('change');
 check('sayfa: Türkçeye dönünce seçim geri gelir', page.$('anisubPanel').hidden === false && page.$('anisub').checked === true && link(page) === `${BASE}/languages=tr&ui=tr&as=1&pri=as/manifest.json` && page.$('pri').value === 'as', link(page));
 page.$('anisub').checked = false; page.$('anisub').fire('change');

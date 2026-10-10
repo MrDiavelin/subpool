@@ -175,8 +175,8 @@ check('ayar sayfası: ayar varsayılan olarak kapalı', page.includes('let ass =
 check('ayar sayfası: adrese "&ass=1" yazılır, kayıtlı ayarlara eklenir', page.includes("(ass ? '&ass=1' : '')") && /hi, forced, clean, ass, gestdown/.test(page) && page.includes('if (saved?.ass === true) ass = true;'));
 check('ayar sayfası: "Altyazı ara ve indir" dosyayı her zaman SRT olarak ister', page.includes("fetch(item.url.replace('&ass=1', ''))"));
 const langs = Object.keys(STRINGS);
-check('12 dilde ayarın adı ve açıklaması var', langs.length === 12 && langs.every((l) => STRINGS[l].assLabel && STRINGS[l].assHint && STRINGS[l].assLabel.includes('ASS/SSA') && STRINGS[l].assHint.includes('OpenSubtitles')), langs.filter((l) => !STRINGS[l].assLabel || !STRINGS[l].assHint).join());
-check('açıklamalar başka dilin metnini kopyalamaz', new Set(langs.map((l) => STRINGS[l].assHint)).size === 12 && new Set(langs.map((l) => STRINGS[l].assLabel)).size === 12);
+check('13 dilde ayarın adı ve açıklaması var', langs.length === 13 && langs.every((l) => STRINGS[l].assLabel && STRINGS[l].assHint && STRINGS[l].assLabel.includes('ASS/SSA') && STRINGS[l].assHint.includes('OpenSubtitles')), langs.filter((l) => !STRINGS[l].assLabel || !STRINGS[l].assHint).join());
+check('açıklamalar başka dilin metnini kopyalamaz', new Set(langs.map((l) => STRINGS[l].assHint)).size === 13 && new Set(langs.map((l) => STRINGS[l].assLabel)).size === 13);
 
 // ---------- Deneme altyazısı (ass=test) ----------
 const { assSample } = await import('../src/subtitle.js');

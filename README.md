@@ -1,6 +1,6 @@
 # SubPool by Diavelin – Stremio altyazı eklentisi
 
-OpenSubtitles, SubDL, SubSource, Subs.ro, AltyazıDB, Gestdown ve AniSub'daki altyazıları Stremio'da **tek listede** toplar ve
+OpenSubtitles, SubDL, SubSource, Subs.ro, AltyazıDB, Gestdown, TheSubtitleDB ve AniSub'daki altyazıları Stremio'da **tek listede** toplar ve
 her altyazının yanında **ücretsiz mi, yoksa senin indirme hakkından mı düşeceğini** yazar.
 
 - Her dilde önce ücretsiz altyazıları, sonra hak harcayanları gösterir; her grubun içinde videonun dosya adına/hash'ine
@@ -15,7 +15,7 @@ her altyazının yanında **ücretsiz mi, yoksa senin indirme hakkından mı dü
 - Anime kataloglarındaki yapımlarda da çalışır (Kitsu, MyAnimeList, AniList ve AniDB numaraları); ASS/SSA biçimindeki
   altyazıları SRT'ye çevirir, istenirse stiliyle olduğu gibi gönderir (deneysel).
 - Türkçe karakter sorunlarını düzeltir (windows-1254 kodlama, `ý/þ/ð` → `ı/ş/ğ`).
-- 105 altyazı dili; ayar sayfası 12 dilde (TR, EN, ES, PT, FR, DE, AR, RU, ZH, JA, KO, RO).
+- 105 altyazı dili; ayar sayfası 13 dilde (TR, EN, ES, PT, FR, DE, AR, HE, RU, ZH, JA, KO, RO).
 - **Her kullanıcı kendi hesabı / anahtarıyla** çalışır; sunucu sahibinin hakkı hiçbir zaman kullanılmaz.
 - Eklenti sadece kullanıcının bağladığı kaynaklarla çalışır. Hiç kaynak bağlanmamışsa uyarı gösterir.
 
@@ -39,6 +39,7 @@ Canlı adres: **https://subpool-diavelin.vercel.app**
 | `[Subs.ro] ✓ Ücretsiz` | Kullanıcının kendi Subs.ro API anahtarıyla gelir; OpenSubtitles hakkı harcamaz. Anahtarın subs.ro'daki günlük sorgu sınırını kullanır. Romence, İngilizce, İtalyanca, Fransızca, Almanca, Macarca, Yunanca, Portekizce ve İspanyolca. |
 | `[AltyazıDB] ✓ Ücretsiz` | Kullanıcının kendi AltyazıDB API anahtarıyla gelir (yalnızca Türkçe ve İngilizce); OpenSubtitles hakkı harcamaz. |
 | `[Gestdown] ✓ Ücretsiz` | Gestdown servisinden gelir (Addic7ed altyazıları); anahtar gerektirmez, OpenSubtitles hakkı harcamaz. Yalnızca dizilerde. |
+| `[TheSubtitleDB] ✓ Ücretsiz` | TheSubtitleDB'nin kendi API'sinden gelir (film ve dizi altyazıları); anahtar gerektirmez, OpenSubtitles hakkı harcamaz. Oynatıcı dosyayı doğrudan TheSubtitleDB'den açar. |
 | `[AniSub] ✓ Ücretsiz` | AniSub'ın kendi Stremio eklentisinden gelen Türkçe anime altyazısıdır; anahtar gerektirmez, OpenSubtitles hakkı harcamaz. Oynatıcı dosyayı doğrudan AniSub'dan açar. Etikette çeviren fansub'ın adı yazar: `[AniSub] ✓ Ücretsiz \| Çeviri: HolySubs`. |
 | `[Çift dilli] ✓ Ücretsiz · Türkçe + İngilizce` | İlk iki dilin altyazısı tek altyazıda birleştirilmiştir (üstte birinci dil, altında italik olarak ikinci dil); hak harcamaz. |
 
@@ -66,7 +67,7 @@ biraz gerisinde kalabilir.
 ## Kullanım
 
 1. Ayar sayfasını aç ve en az bir kaynak bağla: OpenSubtitles hesabı, SubDL anahtarı, SubSource anahtarı, Subs.ro anahtarı ve/veya AltyazıDB anahtarı.
-   Hesap ya da anahtar istemeyen Gestdown (yalnızca diziler) ve AniSub (yalnızca Türkçe anime altyazısı) da tek başına
+   Hesap ya da anahtar istemeyen Gestdown (yalnızca diziler), TheSubtitleDB (film ve diziler) ve AniSub (yalnızca Türkçe anime altyazısı) da tek başına
    ya da diğerlerinin yanında açılabilir. AltyazıDB yalnızca Türkçe ve İngilizce altyazı verdiği için kartı, bağlı
    değilse yalnızca sayfa dili Türkçe ya da İngilizceyken görünür. Subs.ro bir Romen sitesi olduğu için kartı, bağlı
    değilse yalnızca sayfa dili Romenceyken görünür; anahtarı bağlı olan kartı her dilde görür.
@@ -120,7 +121,7 @@ biraz gerisinde kalabilir.
   seçilmiş olmalıdır.
   - Yalnızca eklentinin kendi sunduğu ve hak harcamayan altyazılardan üretilir: SubDL, SubSource, Subs.ro, AltyazıDB, Gestdown ve
     Havuz. "Resmi" altyazılar Stremio'nun sunucusundan geldiği için, "1 hak harcar" altyazılar ise haberin olmadan hak
-    harcanmasın diye birleştirilmez. AniSub altyazıları da doğrudan AniSub'dan açıldığı için birleştirilmez. Yalnızca OpenSubtitles hesabı bağlıysa çoğu zaman çift dilli altyazı çıkmaz.
+    harcanmasın diye birleştirilmez. TheSubtitleDB ve AniSub altyazıları da doğrudan kendi sitelerinden açıldığı için birleştirilmez. Yalnızca OpenSubtitles hesabı bağlıysa çoğu zaman çift dilli altyazı çıkmaz.
   - Birinci dilin en uygun altyazıları, ikinci dilde sürüm adı en çok benzeyen altyazıyla eşlenir.
   - İkinci dilin altyazısı baştan sona aynı süre kadar erken ya da geç kalıyorsa (en fazla 15 saniye) bu fark ölçülür ve
     ikinci dil ona göre kaydırılır; birinci dilin zamanlarına dokunulmaz.
@@ -128,8 +129,8 @@ biraz gerisinde kalabilir.
     film boyunca giderek büyür; bu da ölçülüp düzeltilir. Bunların dışındaki, bölüm boyunca değişen farklar (örneğin
     reklam arası kesilmiş bir sürüm) düzeltilmez ve satırlar birbirine denk gelmeyebilir.
   - İkinci dildeki altyazı alınamazsa birinci dil tek başına gösterilir.
-- **Öne alınacak kaynak** (varsayılan: yok): Seçilen kaynağın (OpenSubtitles, SubDL, SubSource, Subs.ro, AltyazıDB, Gestdown
-  ya da AniSub) altyazıları her dilde diğer ücretsiz altyazıların üstüne alınır (adrese `pri=adb` gibi eklenir). O kaynağın
+- **Öne alınacak kaynak** (varsayılan: yok): Seçilen kaynağın (OpenSubtitles, SubDL, SubSource, Subs.ro, AltyazıDB, Gestdown,
+  TheSubtitleDB ya da AniSub) altyazıları her dilde diğer ücretsiz altyazıların üstüne alınır (adrese `pri=adb` gibi eklenir). O kaynağın
   kendi altyazıları yine videoya uygunluğa göre sıralanır. "1 hak harcar" altyazılar her zaman en altta, çift dilli
   altyazılar her zaman en üstte kalır; "Sona taşı" seçiliyse HI altyazılar öne alınan kaynaktan olsalar da HI
   olmayanların altında durur.
@@ -147,6 +148,21 @@ Ayar sayfasındaki **Gestdown** kartının düğmesiyle açılır (adrese `gd=1`
 - Eklentideki 105 dilin 88'inde arama yapabilir; tanımadığı dillerde aranmaz.
 - Gestdown diziyi o sırada yeniliyorsa o an altyazı vermez; liste onsuz gösterilir ve oynatıcıya listeyi yalnızca
   1 dakika saklaması söylenir.
+
+### TheSubtitleDB
+
+[TheSubtitleDB](https://thesubtitledb.org), hesap ve anahtar istemeyen bir API sunan film ve dizi altyazısı arşividir.
+Ayar sayfasındaki **TheSubtitleDB** kartının düğmesiyle açılır (adrese `tdb=1` eklenir); varsayılan olarak kapalıdır.
+
+- Filmlerde ve dizilerde çalışır; başka hiçbir kaynak bağlamadan, tek başına da kullanılabilir.
+- Sitenin belgesi indirmelerin kullanıcının kendi tarafından yapılmasını ister ve bir IP adresinden saatte 150 indirmeye
+  izin verir. Bu yüzden sitenin verdiği dosya adresi olduğu gibi listeye konur; oynatıcı dosyayı doğrudan
+  TheSubtitleDB'den açar.
+- Dosya SubPool'un sunucusundan geçmediği için bu altyazılarda ses açıklaması temizliği yapılmaz, çift dilli altyazıda
+  kullanılmaz ve **Altyazı ara ve indir** bölümünde gösterilmez.
+- Yalnızca SRT ve VTT biçimindeki altyazılar listelenir.
+- Her dil için ayrı bir arama yapılır; dil başına en fazla 100 altyazı alınır. Kantonca, Güney Azerbaycanca ve Tetumca
+  bu kaynakta aranmaz.
 
 ### AniSub
 
@@ -246,6 +262,10 @@ Eklenti Nuvio'da da çalışır: adresi kopyalayıp Nuvio'nun Eklentiler bölüm
   olarak verir; sezon paketlerinden istenen bölüm de site tarafında ayıklanır.
 - **Gestdown:** Servisin API'si (`api.gestdown.info`) kullanılır ([src/gestdown.js](src/gestdown.js)). Gestdown dizileri
   TheTVDB numarasıyla tanır; bu numara Cinemeta'dan (`v3-cinemeta.strem.io`) alınır. Altyazılar düz SRT olarak gelir.
+- **TheSubtitleDB:** Sitenin belgelenmiş API'si (`api.thesubtitledb.org`; belgesi `thesubtitledb.org/llms.txt`) kullanılır
+  ([src/tsdb.js](src/tsdb.js)). Sunucu yalnızca arama yapar (`/v1/by-imdb/...`); yanıttaki `download_url` adresi olduğu
+  gibi listeye konur, adresler elle üretilmez ve altyazı dosyalarına sunucu hiç dokunmaz. Sonuçlar 6 saat önbellekte
+  tutulur. İsteklerde eklentinin adı, bu deponun adresi ve iletişim adresi yazar.
 - **AniSub:** AniSub'ın kendi Stremio eklentisinin altyazı adresi (`anisub.co/subtitles/...`) kullanılır
   ([src/anisub.js](src/anisub.js)). Yalnızca `https://anisub.co/` ile başlayan altyazı adresleri listeye alınır; adresler
   elle üretilmez ve altyazı dosyalarına sunucu hiç dokunmaz. Sonuçlar 6 saat önbellekte tutulur. İsteklerde eklentinin
@@ -274,6 +294,10 @@ Kodu incelerken bakılacak yerler:
 - **Gestdown'a hesap bilgisi gitmez.** Gestdown açıksa sunucu, izlenen dizinin TheTVDB numarasını, sezon/bölüm numarasını ve
   seçilen dilleri `api.gestdown.info` adresine sorar ([src/gestdown.js](src/gestdown.js)); kullanıcı adı, şifre ya da anahtar
   gönderilmez. İstek kullanıcının cihazından değil, eklentinin sunucusundan çıkar.
+- **TheSubtitleDB'ye hesap bilgisi gitmez.** TheSubtitleDB açıksa sunucu, izlenen yapımın IMDb numarasını (dizide
+  sezon/bölüm numarasıyla birlikte) ve seçilen dilleri `api.thesubtitledb.org` adresine sorar ([src/tsdb.js](src/tsdb.js));
+  kullanıcı adı, şifre ya da anahtar gönderilmez. Bir TheSubtitleDB altyazısı seçildiğinde ise dosyayı oynatıcı doğrudan
+  TheSubtitleDB'den indirir; bu istek kullanıcının cihazından çıkar.
 - **AniSub'a hesap bilgisi gitmez.** AniSub açıksa sunucu, izlenen yapımın IMDb numarasını (dizide sezon/bölüm numarasıyla
   birlikte) AniSub'ın eklentisine sorar ([src/anisub.js](src/anisub.js)); kullanıcı adı, şifre ya da anahtar gönderilmez.
   Bir AniSub altyazısı seçildiğinde ise dosyayı oynatıcı doğrudan `anisub.co` adresinden indirir; bu istek kullanıcının
@@ -324,14 +348,18 @@ SubDL, SubSource ve Subs.ro anahtarları sunucuya değil, her kullanıcının ke
 
 ## Yenilikler
 
+- **3.17.0:** Yeni kaynak: TheSubtitleDB (film ve diziler; hesap ya da anahtar istemez). Ayar sayfasındaki kartından
+  açılır, varsayılan olarak kapalıdır. Site indirmelerin kullanıcının kendi tarafından yapılmasını istediği için oynatıcı
+  dosyayı doğrudan TheSubtitleDB'den açar; bu altyazılar çift dilli altyazıda ve ses açıklaması temizliğinde kullanılmaz.
+- **3.16.0:** İbranice arayüz dili eklendi (çeviri: haveAnIssue). İbranice sayfa, Arapça gibi sağdan sola yazılır. Subs.ro yeniden çalışıyor: site yöneticileri eklentinin sunucusundan gelen istekleri kabul edecek şekilde ayar yaptı, karttaki "şu an çalışmıyor" uyarısı kaldırıldı.
 - **3.15.0:** Ayar sayfası Romence de açılır. Yeni kaynak: Subs.ro (kullanıcının kendi API anahtarıyla; kartı sayfa
   dili Romenceyken görünür). Yeni ayar: yabancı konuşma (forced)
   altyazıları öne alınabilir ya da gizlenebilir; SubDL ve SubSource'ta sürüm adı "forced" diyen altyazılar da tanınır,
   AltyazıDB'nin işaretlediği forced altyazılar artık listelenir. Ayar sayfasındaki örnek karede altyazı sayfanın
   dilinde yazılır.
 - **3.15.1:** Subs.ro anahtarı doğrulanırken sitenin kendi API'sinden gelmeyen bir 401/403 yanıtı artık "anahtar
-- **3.15.2:** Subs.ro kartına geçici bir uyarı eklendi: subs.ro şu an eklentinin sunucusundan gelen istekleri kabul etmediği için anahtar bağlanamıyor. Anahtar kutusu yerinde durur; site istekleri kabul ettiğinde yeni sürüm gerekmeden çalışır.
   kabul edilmedi" sayılmaz; genel hata verilir ve sitenin yanıtı (anahtar olmadan) sunucu günlüğüne yazılır.
+- **3.15.2:** Subs.ro kartına geçici bir uyarı eklendi: subs.ro şu an eklentinin sunucusundan gelen istekleri kabul etmediği için anahtar bağlanamıyor. Anahtar kutusu yerinde durur; site istekleri kabul ettiğinde yeni sürüm gerekmeden çalışır.
 - **3.14.1:** Oynatıcının ASS stilini gösterip göstermediğini denemek için `ass=test` ile açılan iki deneme altyazısı.
 - **3.14.2:** Oynatıcının altyazı listesinde hangi bilgiyi gösterdiğini denemek için adrese `test=fields` eklenince açılan dört deneme altyazısı.
 - **3.14.3:** Deneme adresleri (`ass=test`, `test=fields`) hesap bağlanmadan da kurulabilir.

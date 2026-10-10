@@ -18,7 +18,7 @@ for (const [i, code] of scripts.entries()) {
 }
 const page = scripts.join('\n');
 check('e-posta denetimi sayfada', page.includes("username.includes('@')") && page.includes("setMsg('os', 'badLogin')"));
-check('12 dilde ipucu var', Object.values(STRINGS).every((s) => s.badLogin.includes('opensubtitles.com')) && Object.keys(STRINGS).length === 12);
+check('13 dilde ipucu var', Object.values(STRINGS).every((s) => s.badLogin.includes('opensubtitles.com')) && Object.keys(STRINGS).length === 13);
 check('ipucu sayfaya gidiyor', html.includes("opensubtitles.com'daki kullanıcı adını yaz"));
 console.log(ok ? '\nHepsi geçti' : '\nBAŞARISIZ');
 process.exit(ok ? 0 : 1);

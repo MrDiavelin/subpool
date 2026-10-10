@@ -176,8 +176,8 @@ check('deneme: çalışmayan kaynakta da süre gelir', res.data.results.length =
 
 // ---------- Metinler ----------
 const uis = Object.keys(STRINGS);
-check('metinler: üç yeni not 12 dilde var, ayraç içermez', uis.length === 12 && uis.every((ui) => ['matchFile', 'matchRelease', 'forced'].every((k) => STRINGS[ui][k] && !/[|·]/.test(STRINGS[ui][k]))));
-check('metinler: notlar dilden dile farklı (çevrilmiş)', new Set(uis.map((ui) => STRINGS[ui].matchFile)).size === 12 && new Set(uis.map((ui) => STRINGS[ui].forced)).size === 12);
+check('metinler: üç yeni not 13 dilde var, ayraç içermez', uis.length === 13 && uis.every((ui) => ['matchFile', 'matchRelease', 'forced'].every((k) => STRINGS[ui][k] && !/[|·]/.test(STRINGS[ui][k]))));
+check('metinler: notlar dilden dile farklı (çevrilmiş)', new Set(uis.map((ui) => STRINGS[ui].matchFile)).size === 13 && new Set(uis.map((ui) => STRINGS[ui].forced)).size === 13);
 check('tanıtım: her dilde Gestdown, yalnızca Türkçe ve İngilizcede AltyazıDB, yalnızca Türkçede AniSub', uis.every((ui) => ['tagline', 'manifestDesc'].every((k) => STRINGS[ui][k].includes('Gestdown')
   && STRINGS[ui][k].includes('AltyazıDB') === (ui === 'tr' || ui === 'en') && STRINGS[ui][k].includes('AniSub') === (ui === 'tr'))), uis.filter((ui) => !STRINGS[ui].tagline.includes('Gestdown')).join());
 check('tanıtım: yer tutucular duruyor', uis.every((ui) => STRINGS[ui].manifestDesc.includes('{sources}') && STRINGS[ui].manifestDesc.includes('{langs}')));
